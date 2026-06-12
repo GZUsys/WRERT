@@ -13,7 +13,6 @@
 
 #### Evaluate in one-button
 
-
 #### Build the benchmark
 
 #### Reproduce the results
@@ -21,9 +20,6 @@
 #### Plot the figures
 
 ### Contacts
-- [Ke Wang](https://skyelves.github.io/)
-
-- [Yiwei Li](https://leepoly.com/about/)
 
 ### Reference
 
