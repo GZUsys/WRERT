@@ -1,0 +1,25 @@
+# git 忽略的文件
+
+# CMakeFiles 目录
+CMakeFiles/
+
+# 静态库文件
+*.a
+# CMake 文件
+*.cmake
+
+# 混合工作负载
+YCSB-C/
+
+# 基准测试日志文件
+Log/
+
+# vscode 目录
+.vscode/
+
+# 主程序
+main.cpp
+
+# 备份文件
+*copy*
+*-a*
