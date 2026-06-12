@@ -5,8 +5,13 @@ CMakeFiles/
 
 # 静态库文件
 *.a
+
 # CMake 文件
 *.cmake
+CMakeLists.txt
+
+# Makefile 文件
+Makefile
 
 # 混合工作负载
 YCSB-C/
@@ -23,3 +28,6 @@ main.cpp
 # 备份文件
 *copy*
 *-a*
+
+# 可执行程序
+nvmkv
