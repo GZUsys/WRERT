@@ -182,32 +182,6 @@ nvmkv-roert/fast:
 .PHONY : nvmkv-roert/fast
 
 #=============================================================================
-# Target rules for targets named nvmkv-fastfair
-
-# Build rule for target.
-nvmkv-fastfair: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 nvmkv-fastfair
-.PHONY : nvmkv-fastfair
-
-# fast build rule for target.
-nvmkv-fastfair/fast:
-	$(MAKE) $(MAKESILENT) -f fastfair/CMakeFiles/nvmkv-fastfair.dir/build.make fastfair/CMakeFiles/nvmkv-fastfair.dir/build
-.PHONY : nvmkv-fastfair/fast
-
-#=============================================================================
-# Target rules for targets named nvmkv-lbt
-
-# Build rule for target.
-nvmkv-lbt: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 nvmkv-lbt
-.PHONY : nvmkv-lbt
-
-# fast build rule for target.
-nvmkv-lbt/fast:
-	$(MAKE) $(MAKESILENT) -f lbtree/CMakeFiles/nvmkv-lbt.dir/build.make lbtree/CMakeFiles/nvmkv-lbt.dir/build
-.PHONY : nvmkv-lbt/fast
-
-#=============================================================================
 # Target rules for targets named nvmkv-wort
 
 # Build rule for target.
@@ -281,8 +255,6 @@ help:
 	@echo "... nvmkv"
 	@echo "... nvmkv-ert"
 	@echo "... nvmkv-fastalloc"
-	@echo "... nvmkv-fastfair"
-	@echo "... nvmkv-lbt"
 	@echo "... nvmkv-rng"
 	@echo "... nvmkv-roart"
 	@echo "... nvmkv-roert"

@@ -13,8 +13,8 @@ add_subdirectory(ert)
 add_subdirectory(fastalloc)
 add_subdirectory(rng)
 add_subdirectory(roert)
-add_subdirectory(fastfair)
-add_subdirectory(lbtree)
+# add_subdirectory(fastfair)
+# add_subdirectory(lbtree)
 # add_subdirectory(wope)
 add_subdirectory(wort)
 add_subdirectory(woart)
@@ -25,6 +25,6 @@ add_subdirectory(roart)
 add_executable(nvmkv db_bench.cpp)
 
 target_link_libraries(nvmkv PRIVATE
-nvmkv-roert nvmkv-ert nvmkv-fastfair nvmkv-lbt nvmkv-wort nvmkv-woart nvmkv-roart nvmkv-rng nvmkv-rng nvmkv-fastalloc)
+nvmkv-roert nvmkv-ert nvmkv-wort nvmkv-woart nvmkv-roart nvmkv-rng nvmkv-fastalloc)
 
 

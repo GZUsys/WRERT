@@ -298,8 +298,8 @@ OperationResults ROERT::insert(uint64_t key, uint64_t value, ROERTNode* node, in
                 // 主桶在段中的位置
                 const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
 
-                printf("subKey: 0x%08llx, globalDepth: %lu, localDepth: %lu, segmentIndex: %lu, sharedBucketIndex: %lu, sharedBucketPosition: %lu, mainBucketIndex: %lu, mainBucketPosition: %lu\n",
-                       subKey, globalDepth, localDepth, segmentIndex, sharedBucketIndex, sharedBucketPosition, mainBucketIndex, mainBucketPosition);
+                // printf("subKey: 0x%08llx, globalDepth: %lu, localDepth: %lu, segmentIndex: %lu, sharedBucketIndex: %lu, sharedBucketPosition: %lu, mainBucketIndex: %lu, mainBucketPosition: %lu\n",
+                //        subKey, globalDepth, localDepth, segmentIndex, sharedBucketIndex, sharedBucketPosition, mainBucketIndex, mainBucketPosition);
 
                 // 获取主桶指针
                 ROERTBucket* mainBucket = &segment->buckets[mainBucketPosition];
