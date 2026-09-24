@@ -57,10 +57,10 @@ RM = /usr/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/yh/ExtendibleRadixTree
+CMAKE_SOURCE_DIR = /home/yh/WRERT
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/yh/ExtendibleRadixTree
+CMAKE_BINARY_DIR = /home/yh/WRERT
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -87,9 +87,9 @@ rebuild_cache/fast: rebuild_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/yh/ExtendibleRadixTree/CMakeFiles /home/yh/ExtendibleRadixTree//CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/yh/WRERT/CMakeFiles /home/yh/WRERT//CMakeFiles/progress.marks
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/yh/ExtendibleRadixTree/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/yh/WRERT/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
@@ -130,19 +130,6 @@ nvmkv/fast:
 .PHONY : nvmkv/fast
 
 #=============================================================================
-# Target rules for targets named nvmkv-ert
-
-# Build rule for target.
-nvmkv-ert: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 nvmkv-ert
-.PHONY : nvmkv-ert
-
-# fast build rule for target.
-nvmkv-ert/fast:
-	$(MAKE) $(MAKESILENT) -f ert/CMakeFiles/nvmkv-ert.dir/build.make ert/CMakeFiles/nvmkv-ert.dir/build
-.PHONY : nvmkv-ert/fast
-
-#=============================================================================
 # Target rules for targets named nvmkv-fastalloc
 
 # Build rule for target.
@@ -169,17 +156,30 @@ nvmkv-rng/fast:
 .PHONY : nvmkv-rng/fast
 
 #=============================================================================
-# Target rules for targets named nvmkv-roert
+# Target rules for targets named nvmkv-ert
 
 # Build rule for target.
-nvmkv-roert: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 nvmkv-roert
-.PHONY : nvmkv-roert
+nvmkv-ert: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 nvmkv-ert
+.PHONY : nvmkv-ert
 
 # fast build rule for target.
-nvmkv-roert/fast:
-	$(MAKE) $(MAKESILENT) -f roert/CMakeFiles/nvmkv-roert.dir/build.make roert/CMakeFiles/nvmkv-roert.dir/build
-.PHONY : nvmkv-roert/fast
+nvmkv-ert/fast:
+	$(MAKE) $(MAKESILENT) -f ert/CMakeFiles/nvmkv-ert.dir/build.make ert/CMakeFiles/nvmkv-ert.dir/build
+.PHONY : nvmkv-ert/fast
+
+#=============================================================================
+# Target rules for targets named nvmkv-wrert
+
+# Build rule for target.
+nvmkv-wrert: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 nvmkv-wrert
+.PHONY : nvmkv-wrert
+
+# fast build rule for target.
+nvmkv-wrert/fast:
+	$(MAKE) $(MAKESILENT) -f wrert/CMakeFiles/nvmkv-wrert.dir/build.make wrert/CMakeFiles/nvmkv-wrert.dir/build
+.PHONY : nvmkv-wrert/fast
 
 #=============================================================================
 # Target rules for targets named nvmkv-wort
@@ -257,9 +257,9 @@ help:
 	@echo "... nvmkv-fastalloc"
 	@echo "... nvmkv-rng"
 	@echo "... nvmkv-roart"
-	@echo "... nvmkv-roert"
 	@echo "... nvmkv-woart"
 	@echo "... nvmkv-wort"
+	@echo "... nvmkv-wrert"
 	@echo "... db_bench.o"
 	@echo "... db_bench.i"
 	@echo "... db_bench.s"

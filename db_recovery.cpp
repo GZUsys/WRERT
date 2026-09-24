@@ -18,10 +18,10 @@
 #include <unordered_set>
 
 #include "rng/rng.h"
-#include "roert/roert.h"
+#include "wrert/wrert.h"
 
 using namespace std;
-using namespace roert; // 根据实际命名空间调整
+using namespace wrert; // 根据实际命名空间调整
 
 static int FLAGS_test_num = 100000000;        // 测试数据量
 static int FLAGS_abort_num = 10000000;        // 注入崩溃次数
@@ -63,76 +63,76 @@ void run_crash_recovery_test(int argc, char* argv[]) {
 
     fflush(stdout);
 
-    // 初始化 ROERT
-    ROERT* roert = nullptr;
-    unordered_set<uint64_t> unique_ROERT_keys;
+    // 初始化 WRERT
+    WRERT* wrert = nullptr;
+    unordered_set<uint64_t> unique_WRERT_keys;
 
-    // 检查 /pmem0/roert/0 文件是否存在，如果存在则执行恢复，否则创建新的 ROERT
-    if (access("/pmem0/roert/0", F_OK) == 0) {
+    // 检查 /pmem0/wrert/0 文件是否存在，如果存在则执行恢复，否则创建新的 WRERT
+    if (access("/pmem0/wrert/0", F_OK) == 0) {
         // 存在则恢复根节点指针
-        init_fast_allocator(true, true, "/pmem0/roert/");
+        init_fast_allocator(true, true, "/pmem0/wrert/");
         auto start_time = std::chrono::high_resolution_clock::now();
-        roert = roert->recoveryTree();
+        wrert = wrert->recoveryTree();
         auto end_time = std::chrono::high_resolution_clock::now();
-        printf("  |-> ROERT 恢复时长: %llu ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count());
-        printf("  |-> ROERT %d 个键恢复时长: %.6f s\n", g_config.abort_num, std::chrono::duration<double>(end_time - start_time).count());
+        printf("  |-> WRERT 恢复时长: %llu ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count());
+        printf("  |-> WRERT %d 个键恢复时长: %.6f s\n", g_config.abort_num, std::chrono::duration<double>(end_time - start_time).count());
 
-        // uint64_t result_count = roert->lookupRange(min_sparse_key_, max_sparse_key_).size();
-        // printf("  |-> ROERT 搜索范围 [%llu, %llu] 共 %llu 个键\n", min_sparse_key_, max_sparse_key_, result_count);
+        // uint64_t result_count = wrert->lookupRange(min_sparse_key_, max_sparse_key_).size();
+        // printf("  |-> WRERT 搜索范围 [%llu, %llu] 共 %llu 个键\n", min_sparse_key_, max_sparse_key_, result_count);
 
         for (int i = 0; i < g_config.abort_num + 1; i++) {
-            uint64_t result = roert->search(keys_sparse[i]);
+            uint64_t result = wrert->search(keys_sparse[i]);
             if (result != (uint64_t)-1) {
-                unique_ROERT_keys.insert(result);
+                unique_WRERT_keys.insert(result);
             }
         }
-        printf("  |-> ROERT search 操作返回的唯一值数量: %llu\n", unique_ROERT_keys.size());
+        printf("  |-> WRERT search 操作返回的唯一值数量: %llu\n", unique_WRERT_keys.size());
 
         start_time = std::chrono::high_resolution_clock::now();
-        uint64_t memory_bytes = roert->memory_profile(nullptr);
+        uint64_t memory_bytes = wrert->memory_profile(nullptr);
         end_time = std::chrono::high_resolution_clock::now();
         double memory_gb = static_cast<double>(memory_bytes) / (1024.0 * 1024.0 * 1024.0);
-        printf("  |-> ROERT 内存占用: %lu bytes (%.6f GB)\n", memory_bytes, memory_gb);
-        printf("  |-> ROERT 内存恢复遍历时长: %llu ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count());
-        printf("  |-> ROERT %d 个键内存恢复遍历时长: %.6f s\n", g_config.abort_num, std::chrono::duration<double>(end_time - start_time).count());
+        printf("  |-> WRERT 内存占用: %lu bytes (%.6f GB)\n", memory_bytes, memory_gb);
+        printf("  |-> WRERT 内存恢复遍历时长: %llu ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count());
+        printf("  |-> WRERT %d 个键内存恢复遍历时长: %.6f s\n", g_config.abort_num, std::chrono::duration<double>(end_time - start_time).count());
 
         // 执行插入操作
         // for (int i = 0; i < g_config.abort_num + 1; i++) {
-        //     roert->insert(keys_sparse[i], i + 10);
+        //     wrert->insert(keys_sparse[i], i + 10);
         // }
 
-        // unique_ROERT_keys.clear();
+        // unique_WRERT_keys.clear();
         // for (int i = 0; i < g_config.abort_num + 5; i++) {
-        //     uint64_t result = roert->search(keys_sparse[i]);
+        //     uint64_t result = wrert->search(keys_sparse[i]);
         //     if (result != (uint64_t)-1) {
-        //         unique_ROERT_keys.insert(result);
+        //         unique_WRERT_keys.insert(result);
         //     }
         // }
-        // printf("  |-> ROERT search 操作返回的唯一值数量: %llu\n", unique_ROERT_keys.size());
+        // printf("  |-> WRERT search 操作返回的唯一值数量: %llu\n", unique_WRERT_keys.size());
 
     } else {
-        init_fast_allocator(true, true, "/pmem0/roert/");
-        roert = NewROERT();
+        init_fast_allocator(true, true, "/pmem0/wrert/");
+        wrert = NewWRERT();
 
         // 执行插入操作
         for (int i = 0, j = 1; i < g_config.test_num; i++) {
-            roert->insert(keys_sparse[i], i);
+            wrert->insert(keys_sparse[i], i);
             if (j++ == g_config.abort_num) {
                 // 注入崩溃 (模拟断电)
                 abort();
             }
         }
 
-        // uint64_t result_count = roert->lookupRange(min_sparse_key_, max_sparse_key_).size();
-        // printf("  |-> ROERT 搜索范围 [%llu, %llu] 共 %llu 个键\n", min_sparse_key_, max_sparse_key_, result_count);
+        // uint64_t result_count = wrert->lookupRange(min_sparse_key_, max_sparse_key_).size();
+        // printf("  |-> WRERT 搜索范围 [%llu, %llu] 共 %llu 个键\n", min_sparse_key_, max_sparse_key_, result_count);
 
         // auto start_time = std::chrono::high_resolution_clock::now();
-        // uint64_t memory_bytes = roert->memory_profile(nullptr);
+        // uint64_t memory_bytes = wrert->memory_profile(nullptr);
         // auto end_time = std::chrono::high_resolution_clock::now();
         // double memory_gb = static_cast<double>(memory_bytes) / (1024.0 * 1024.0 * 1024.0);
-        // printf("  |-> ROERT 内存占用: %lu bytes (%.6f GB)\n", memory_bytes, memory_gb);
-        // printf("  |-> ROERT 内存遍历时长: %llu ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count());
-        // printf("  |-> ROERT %d 个键内存遍历时长: %.6f s\n", g_config.test_num, std::chrono::duration<double>(end_time - start_time).count());
+        // printf("  |-> WRERT 内存占用: %lu bytes (%.6f GB)\n", memory_bytes, memory_gb);
+        // printf("  |-> WRERT 内存遍历时长: %llu ns\n", std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count());
+        // printf("  |-> WRERT %d 个键内存遍历时长: %.6f s\n", g_config.test_num, std::chrono::duration<double>(end_time - start_time).count());
 
         // fflush(stdout);
     }

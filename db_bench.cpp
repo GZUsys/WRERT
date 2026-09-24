@@ -19,8 +19,8 @@
 
 #include "rng/rng.h"
 #include "ert/ERT_int.h"
-#include "roert/roert.h"
-// #include "roert/roert_node.h"
+#include "wrert/wrert.h"
+// #include "wrert/wrert_node.h"
 // #include "fastfair/fastfair.h"
 // #include "wope/wope.h"
 // #include "lbtree/lbtree.h"
@@ -29,7 +29,7 @@
 #include "roart/roart.h"
 
 using namespace std;
-using namespace roert;
+using namespace wrert;
 
 // ==================== 全局配置参数 ====================
 // 基准测试参数
@@ -788,11 +788,12 @@ private:
         // }
 
         // 打印前几行数据
-        // int print_count = 0;
+        int print_count = 0;
         // while (print_count < config_.clustered_num) {
-        //     log.log_info("  |-> Clustered 数据集 Key " + to_string(print_count), to_string(keys_clustered_[print_count]));
-        //     print_count++;
-        // }
+        while (print_count < 100) {
+            log.log_info("  |-> Clustered 数据集 Key " + to_string(print_count), to_string(keys_clustered_[print_count]));
+            print_count++;
+        }
 
         log.log_section("   >>> Clustered 数据集生成完成");
     }
@@ -1069,10 +1070,10 @@ protected:
         // test_range_queries(min_key, max_key, type, metrics);
 
         // 测试查询
-        // test_operation("search", keys, nullptr, count, type, YCSBPhase::NULL_PHASE, PerformanceMetrics::SEARCH, metrics);
+        test_operation("search", keys, nullptr, count, type, YCSBPhase::NULL_PHASE, PerformanceMetrics::SEARCH, metrics);
 
         // 分析内存使用
-        // analyze_memory(type, metrics);
+        analyze_memory(type, metrics);
     }
 
     void test_variable_dataset(std::vector<VariableKey>& keys, int count, PerformanceMetrics::DatasetType type, PerformanceMetrics& metrics) {
@@ -1352,7 +1353,7 @@ protected:
     }
 };
 
-unordered_set<uint64_t> unique_ROERT_keys;
+unordered_set<uint64_t> unique_WRERT_keys;
 unordered_set<uint64_t> unique_ERT_keys;
 unordered_set<char*> unique_FASTFAIR_keys;
 unordered_set<void*> unique_LBTree_keys;
@@ -1361,67 +1362,67 @@ unordered_set<uint64_t> unique_WOART_keys;
 unordered_set<uint64_t> unique_ROART_keys;
 
 // ==================== 具体数据结构测试器实现 ====================
-class ROERTTester : public DataStructureTester {
+class WRERTTester : public DataStructureTester {
 private:
-    ROERT* roert_dense_ = nullptr;
-    ROERT* roert_sparse_ = nullptr;
-    ROERT* roert_clustered_ = nullptr;
-    ROERT* roert_variable_ = nullptr;
-    ROERT* roert_ycsb_ = nullptr;
+    WRERT* wrert_dense_ = nullptr;
+    WRERT* wrert_sparse_ = nullptr;
+    WRERT* wrert_clustered_ = nullptr;
+    WRERT* wrert_variable_ = nullptr;
+    WRERT* wrert_ycsb_ = nullptr;
 
 public:
-    ROERTTester(LogManager& log) : DataStructureTester("ROERT", log) {}
+    WRERTTester(LogManager& log) : DataStructureTester("WRERT", log) {}
 
 protected:
     bool initialize() override {
         bool success = true;
 
         if (g_config.test_ycsb) {
-            roert_ycsb_ = NewROERT();
-            if (!roert_ycsb_) {
-                log_.log_error("YCSB ROERT 实例创建失败");
+            wrert_ycsb_ = NewWRERT();
+            if (!wrert_ycsb_) {
+                log_.log_error("YCSB WRERT 实例创建失败");
                 success = false;
             } else {
-                log_.log_info("  |-> 创建 YCSB 数据集实例对象", "roert_ycsb_");
+                log_.log_info("  |-> 创建 YCSB 数据集实例对象", "wrert_ycsb_");
             }
         } else {
             if (g_config.test_dense) {
-                roert_dense_ = NewROERT();
-                if (!roert_dense_) {
-                    log_.log_error("Dense ROERT 实例创建失败");
+                wrert_dense_ = NewWRERT();
+                if (!wrert_dense_) {
+                    log_.log_error("Dense WRERT 实例创建失败");
                     success = false;
                 } else {
-                    log_.log_info("  |-> 创建 Dense 数据集实例对象", "roert_dense_");
+                    log_.log_info("  |-> 创建 Dense 数据集实例对象", "wrert_dense_");
                 }
             }
 
             if (g_config.test_sparse) {
-                roert_sparse_ = NewROERT();
-                if (!roert_sparse_) {
-                    log_.log_error("Sparse ROERT 实例创建失败");
+                wrert_sparse_ = NewWRERT();
+                if (!wrert_sparse_) {
+                    log_.log_error("Sparse WRERT 实例创建失败");
                     success = false;
                 } else {
-                    log_.log_info("  |-> 创建 Sparse 数据集实例对象", "roert_sparse_");
+                    log_.log_info("  |-> 创建 Sparse 数据集实例对象", "wrert_sparse_");
                 }
             }
 
             if (g_config.test_clustered) {
-                roert_clustered_ = NewROERT();
-                if (!roert_clustered_) {
-                    log_.log_error("Clustered ROERT 实例创建失败");
+                wrert_clustered_ = NewWRERT();
+                if (!wrert_clustered_) {
+                    log_.log_error("Clustered WRERT 实例创建失败");
                     success = false;
                 } else {
-                    log_.log_info("  |-> 创建 Clustered 数据集实例对象", "roert_clustered_");
+                    log_.log_info("  |-> 创建 Clustered 数据集实例对象", "wrert_clustered_");
                 }
             }
 
             if (g_config.test_variable) {
-                roert_variable_ = NewROERT();
-                if (!roert_variable_) {
-                    log_.log_error("Variable ROERT 实例创建失败");
+                wrert_variable_ = NewWRERT();
+                if (!wrert_variable_) {
+                    log_.log_error("Variable WRERT 实例创建失败");
                     success = false;
                 } else {
-                    log_.log_info("  |-> 创建 Variable 数据集实例对象", "roert_variable_");
+                    log_.log_info("  |-> 创建 Variable 数据集实例对象", "wrert_variable_");
                 }
             }
         }
@@ -1429,11 +1430,11 @@ protected:
     }
 
     void test_insert(uint64_t* keys, int count, PerformanceMetrics::DatasetType type, double& time_us) override {
-        ROERT* roert = static_cast<ROERT*>(get_instance(type));
+        WRERT* wrert = static_cast<WRERT*>(get_instance(type));
 
         time_us = measure_time([&]() {
             for (int i = 0; i < count; i++) {
-                roert->insert(keys[i], i);
+                wrert->insert(keys[i], i);
                 // show_progress(i + 1, count, "插入");
             }
         });
@@ -1442,81 +1443,81 @@ protected:
         // for (int i = 0, j = num * i; i < 10; i++) {
         //     time_us = measure_time([&]() {
         //         for (int k = 0; k < num; k++) {
-        //             roert->insert(keys[j], j++);
+        //             wrert->insert(keys[j], j++);
         //             // show_progress(j + 1, count, "插入");
         //         }
         //     });
-        //     // printf("  |-> ROERT %s insert 执行第 %d 个 %llu 次操作耗时: %.f ns, 吞吐量: %.6f Mops, 目录扩展次数: %lu, 段分裂次数: %lu\n",
+        //     // printf("  |-> WRERT %s insert 执行第 %d 个 %llu 次操作耗时: %.f ns, 吞吐量: %.6f Mops, 目录扩展次数: %lu, 段分裂次数: %lu\n",
         //     //        dataset_display_name(type).c_str(), i + 1, num, time_us * 1000,
         //     //        num / (time_us / 1000000.0) / 1000000.0,
-        //     //        roert_insert_directory_grow_time_.size(),
-        //     //        roert_insert_segment_split_time_.size());
-        //     // roert_insert_directory_grow_time_.clear();
-        //     // roert_insert_segment_split_time_.clear();
-        //     printf("  |-> ROERT %s insert 执行第 %d 个 %llu 次操作耗时: %.f ns, 吞吐量: %.6f Mops\n",
+        //     //        wrert_insert_directory_grow_time_.size(),
+        //     //        wrert_insert_segment_split_time_.size());
+        //     // wrert_insert_directory_grow_time_.clear();
+        //     // wrert_insert_segment_split_time_.clear();
+        //     printf("  |-> WRERT %s insert 执行第 %d 个 %llu 次操作耗时: %.f ns, 吞吐量: %.6f Mops\n",
         //            dataset_display_name(type).c_str(), i + 1, num, time_us * 1000,
         //            num / (time_us / 1000000.0) / 1000000.0);
         // }
 
-        printf("  |-> ROERT %s insert %llu 操作总耗时: %.f ns\n",
+        printf("  |-> WRERT %s insert %llu 操作总耗时: %.f ns\n",
                dataset_display_name(type).c_str(), count, time_us * 1000);
-        uint64_t total_update_latency = std::accumulate(roert->per_insert_node_update_latency_.begin(), roert->per_insert_node_update_latency_.end(), 0ULL)
-                                        + std::accumulate(roert_per_insert_node_update_latency_.begin(), roert_per_insert_node_update_latency_.end(), 0ULL);
-        uint64_t total_split_grow_latency = std::accumulate(roert->per_insert_node_split_latency_.begin(), roert->per_insert_node_split_latency_.end(), 0ULL)
-                                            + std::accumulate(roert->per_insert_node_grow_latency_.begin(), roert->per_insert_node_grow_latency_.end(), 0ULL)
-                                            + std::accumulate(roert_insert_segment_split_time_.begin(), roert_insert_segment_split_time_.end(), 0ULL)
-                                            + std::accumulate(roert_insert_directory_grow_time_.begin(), roert_insert_directory_grow_time_.end(), 0ULL);
+        uint64_t total_update_latency = std::accumulate(wrert->per_insert_node_update_latency_.begin(), wrert->per_insert_node_update_latency_.end(), 0ULL)
+                                        + std::accumulate(wrert_per_insert_node_update_latency_.begin(), wrert_per_insert_node_update_latency_.end(), 0ULL);
+        uint64_t total_split_grow_latency = std::accumulate(wrert->per_insert_node_split_latency_.begin(), wrert->per_insert_node_split_latency_.end(), 0ULL)
+                                            + std::accumulate(wrert->per_insert_node_grow_latency_.begin(), wrert->per_insert_node_grow_latency_.end(), 0ULL)
+                                            + std::accumulate(wrert_insert_segment_split_time_.begin(), wrert_insert_segment_split_time_.end(), 0ULL)
+                                            + std::accumulate(wrert_insert_directory_grow_time_.begin(), wrert_insert_directory_grow_time_.end(), 0ULL);
         uint64_t total_traversal_latency = time_us * 1000 - total_update_latency - total_split_grow_latency;
-        printf("  |-> ROERT %s insert 每次插入平均耗时: %.f ns, 树遍历延迟平均延迟: %llu ns, 节点分裂+节点扩容的平均延迟: %llu ns,  节点更新的平均延迟: %llu ns\n",
+        printf("  |-> WRERT %s insert 每次插入平均耗时: %.f ns, 树遍历延迟平均延迟: %llu ns, 节点分裂+节点扩容的平均延迟: %llu ns,  节点更新的平均延迟: %llu ns\n",
                dataset_display_name(type).c_str(),
                time_us * 1000 / count,
                total_traversal_latency / count,
                total_split_grow_latency / count,
                total_update_latency / count);
-        printf("  |-> ROERT 目录扩展次数: %lu - 平均耗时: %lu ns, 段分裂次数: %llu - 平均耗时: %lu ns\n",
-               roert_insert_directory_grow_time_.size(),
-               std::accumulate(roert_insert_directory_grow_time_.begin(), roert_insert_directory_grow_time_.end(), 0ULL) / (roert_insert_directory_grow_time_.size() ? roert_insert_directory_grow_time_.size() : 1),
-               roert_insert_segment_split_time_.size(),
-               std::accumulate(roert_insert_segment_split_time_.begin(), roert_insert_segment_split_time_.end(), 0ULL) / (roert_insert_segment_split_time_.size() ? roert_insert_segment_split_time_.size() : 1));
+        printf("  |-> WRERT 目录扩展次数: %lu - 平均耗时: %lu ns, 段分裂次数: %llu - 平均耗时: %lu ns\n",
+               wrert_insert_directory_grow_time_.size(),
+               std::accumulate(wrert_insert_directory_grow_time_.begin(), wrert_insert_directory_grow_time_.end(), 0ULL) / (wrert_insert_directory_grow_time_.size() ? wrert_insert_directory_grow_time_.size() : 1),
+               wrert_insert_segment_split_time_.size(),
+               std::accumulate(wrert_insert_segment_split_time_.begin(), wrert_insert_segment_split_time_.end(), 0ULL) / (wrert_insert_segment_split_time_.size() ? wrert_insert_segment_split_time_.size() : 1));
 
-        // printf("  |-> ROERT %s insert %llu 操作总树遍历延迟: %llu ns\n",
-        //        //    dataset_display_name(type).c_str(), count, std::accumulate(roert->per_insert_node_traversal_latency_.begin(), roert->per_insert_node_traversal_latency_.end(), 0ULL));
-        //        dataset_display_name(type).c_str(), count, std::accumulate(roert->per_insert_node_traversal_latency_.begin(), roert->per_insert_node_traversal_latency_.end(), 0ULL) / (roert->per_insert_node_traversal_latency_.size() ? roert->per_insert_node_traversal_latency_.size() : 1));
+        // printf("  |-> WRERT %s insert %llu 操作总树遍历延迟: %llu ns\n",
+        //        //    dataset_display_name(type).c_str(), count, std::accumulate(wrert->per_insert_node_traversal_latency_.begin(), wrert->per_insert_node_traversal_latency_.end(), 0ULL));
+        //        dataset_display_name(type).c_str(), count, std::accumulate(wrert->per_insert_node_traversal_latency_.begin(), wrert->per_insert_node_traversal_latency_.end(), 0ULL) / (wrert->per_insert_node_traversal_latency_.size() ? wrert->per_insert_node_traversal_latency_.size() : 1));
     }
 
     void test_search(uint64_t* keys, int count, PerformanceMetrics::DatasetType type, double& time_us) override {
-        ROERT* roert = static_cast<ROERT*>(get_instance(type));
+        WRERT* wrert = static_cast<WRERT*>(get_instance(type));
 
         time_us = measure_time([&]() {
             for (int i = 0; i < count; i++) {
-                roert->search(keys[i]);
-                // unique_ROERT_keys.insert(roert->search(keys[i]));
+                wrert->search(keys[i]);
+                // unique_WRERT_keys.insert(wrert->search(keys[i]));
                 // show_progress(i + 1, count, "查询");
             }
         });
 
-        printf("  |-> ROERT %s search 操作返回的唯一值数量: %llu, 总耗时: %.f ns\n",
-               dataset_display_name(type).c_str(), unique_ROERT_keys.size(), time_us * 1000);
+        printf("  |-> WRERT %s search 操作返回的唯一值数量: %llu, 总耗时: %.f ns\n",
+               dataset_display_name(type).c_str(), unique_WRERT_keys.size(), time_us * 1000);
 
         uint64_t total_traversal_latency = static_cast<uint64_t>(time_us * 1000)
-                                           - std::accumulate(roert->per_search_per_node_latency_.begin(), roert->per_search_per_node_latency_.end(), 0ULL);
+                                           - std::accumulate(wrert->per_search_per_node_latency_.begin(), wrert->per_search_per_node_latency_.end(), 0ULL);
 
-        printf("  |-> ROERT %s search 操作访问节点 %llu, 每次查询平均耗时: %.f ns, 树遍历延迟平均延迟: %llu ns, 节点访问平均延迟: %llu ns, 访问每个节点的平均延迟: %llu ns, 平均访问节点的数量: %.3f\n",
+        printf("  |-> WRERT %s search 操作访问节点 %llu, 每次查询平均耗时: %.f ns, 树遍历延迟平均延迟: %llu ns, 节点访问平均延迟: %llu ns, 访问每个节点的平均延迟: %llu ns, 平均访问节点的数量: %.3f\n",
                dataset_display_name(type).c_str(),
-               roert->per_search_per_node_latency_.size(),
+               wrert->per_search_per_node_latency_.size(),
                time_us * 1000 / count,
                total_traversal_latency / count,
-               std::accumulate(roert->per_search_per_node_latency_.begin(), roert->per_search_per_node_latency_.end(), 0ULL) / count,
-               std::accumulate(roert->per_search_per_node_latency_.begin(), roert->per_search_per_node_latency_.end(), 0ULL) / (roert->per_search_per_node_latency_.size() ? roert->per_search_per_node_latency_.size() : 1),
-               static_cast<double>(roert->per_search_per_node_latency_.size()) / count);
+               std::accumulate(wrert->per_search_per_node_latency_.begin(), wrert->per_search_per_node_latency_.end(), 0ULL) / count,
+               std::accumulate(wrert->per_search_per_node_latency_.begin(), wrert->per_search_per_node_latency_.end(), 0ULL) / (wrert->per_search_per_node_latency_.size() ? wrert->per_search_per_node_latency_.size() : 1),
+               static_cast<double>(wrert->per_search_per_node_latency_.size()) / count);
     }
 
     void test_variable_insert(std::vector<VariableKey>& keys, int count, PerformanceMetrics::DatasetType type, double& time_us) {
-        ROERT* roert = static_cast<ROERT*>(get_instance(type));
+        WRERT* wrert = static_cast<WRERT*>(get_instance(type));
 
         // time_us = measure_time([&]() {
         //     for (int i = 0; i < count; i++) {
-        //         roert->insert(keys[i], i);
+        //         wrert->insert(keys[i], i);
         //         // show_progress(i + 1, count, "插入");
         //     }
         // });
@@ -1531,46 +1532,46 @@ protected:
     }
 
     void test_variable_search(std::vector<VariableKey>& keys, int count, PerformanceMetrics::DatasetType type, double& time_us) {
-        ROERT* roert = static_cast<ROERT*>(get_instance(type));
+        WRERT* wrert = static_cast<WRERT*>(get_instance(type));
 
         // time_us = measure_time([&]() {
         //     for (int i = 0; i < count; i++) {
-        //         roert->search(keys[i]);
+        //         wrert->search(keys[i]);
         //         // show_progress(i + 1, count, "查询");
         //     }
         // });
     }
 
     void test_range(uint64_t start, uint64_t end, PerformanceMetrics::DatasetType type, double& time_us, uint64_t& result_count) override {
-        ROERT* roert = static_cast<ROERT*>(get_instance(type));
+        WRERT* wrert = static_cast<WRERT*>(get_instance(type));
 
-        roert->range_segment_scan_latency_.clear();
+        wrert->range_segment_scan_latency_.clear();
 
         time_us = measure_time([&]() {
-            result_count = roert->lookupRange(start, end).size();
+            result_count = wrert->lookupRange(start, end).size();
         });
 
-        printf("  |-> ROERT %s 查询范围 [%llu, %llu] 共 %llu 个键, 总耗时: %.f ns\n",
+        printf("  |-> WRERT %s 查询范围 [%llu, %llu] 共 %llu 个键, 总耗时: %.f ns\n",
                dataset_display_name(type).c_str(), start, end, result_count, time_us * 1000);
 
-        printf("  |-> ROERT %s range 操作树遍历延迟: %llu ns, 段扫描总延迟: %llu ns, 平均段扫描延迟: %llu ns, 访问段的数量: %llu\n",
+        printf("  |-> WRERT %s range 操作树遍历延迟: %llu ns, 段扫描总延迟: %llu ns, 平均段扫描延迟: %llu ns, 访问段的数量: %llu\n",
                dataset_display_name(type).c_str(),
-               static_cast<uint64_t>(time_us * 1000) - std::accumulate(roert->range_segment_scan_latency_.begin(), roert->range_segment_scan_latency_.end(), 0ULL),
-               std::accumulate(roert->range_segment_scan_latency_.begin(), roert->range_segment_scan_latency_.end(), 0ULL),
-               std::accumulate(roert->range_segment_scan_latency_.begin(), roert->range_segment_scan_latency_.end(), 0ULL) / (roert->range_segment_scan_latency_.size() ? roert->range_segment_scan_latency_.size() : 1),
-               roert->range_segment_scan_latency_.size());
+               static_cast<uint64_t>(time_us * 1000) - std::accumulate(wrert->range_segment_scan_latency_.begin(), wrert->range_segment_scan_latency_.end(), 0ULL),
+               std::accumulate(wrert->range_segment_scan_latency_.begin(), wrert->range_segment_scan_latency_.end(), 0ULL),
+               std::accumulate(wrert->range_segment_scan_latency_.begin(), wrert->range_segment_scan_latency_.end(), 0ULL) / (wrert->range_segment_scan_latency_.size() ? wrert->range_segment_scan_latency_.size() : 1),
+               wrert->range_segment_scan_latency_.size());
     }
 
     void test_ycsb_operations(YCSBLoader* loader, int count, YCSBPhase phase, PerformanceMetrics::DatasetType ycsb_type, double& time_us) override {
-        ROERT* roert = static_cast<ROERT*>(get_instance(ycsb_type));
+        WRERT* wrert = static_cast<WRERT*>(get_instance(ycsb_type));
         auto& operation_records = loader->get_operation_records(phase);
 
         time_us = measure_time([&]() {
             for (int i = 0; i < count; i++) {
                 if (operation_records[i].op_char == 'r') {
-                    roert->search(operation_records[i].key);
+                    wrert->search(operation_records[i].key);
                 } else if (operation_records[i].op_char == 'u' || operation_records[i].op_char == 'i') {
-                    roert->insert(operation_records[i].key, operation_records[i].value);
+                    wrert->insert(operation_records[i].key, operation_records[i].value);
                 }
 
                 // if (phase == YCSBPhase::LOAD) {
@@ -1583,28 +1584,28 @@ protected:
     }
 
     uint64_t get_memory_usage(PerformanceMetrics::DatasetType type) override {
-        ROERT* roert = static_cast<ROERT*>(get_instance(type));
+        WRERT* wrert = static_cast<WRERT*>(get_instance(type));
 
-        return roert ? roert->memory_profile(nullptr) : 0;
+        return wrert ? wrert->memory_profile(nullptr) : 0;
     }
 
     void* get_instance(PerformanceMetrics::DatasetType type) override {
         switch (type) {
             case PerformanceMetrics::DENSE:
-                return roert_dense_;
+                return wrert_dense_;
             case PerformanceMetrics::SPARSE:
-                return roert_sparse_;
+                return wrert_sparse_;
             case PerformanceMetrics::CLUSTERED:
-                return roert_clustered_;
+                return wrert_clustered_;
             case PerformanceMetrics::VARIABLE:
-                return roert_variable_;
+                return wrert_variable_;
             case PerformanceMetrics::YCSB_WORKLOAD_A:
             case PerformanceMetrics::YCSB_WORKLOAD_B:
             case PerformanceMetrics::YCSB_WORKLOAD_C:
             case PerformanceMetrics::YCSB_WORKLOAD_D:
             case PerformanceMetrics::YCSB_WORKLOAD_E:
             case PerformanceMetrics::YCSB_WORKLOAD_F:
-                return roert_ycsb_;
+                return wrert_ycsb_;
             default:
                 return nullptr;
         }
@@ -2797,10 +2798,12 @@ int main(int argc, char* argv[]) {
         } else if (argc == 5) {
             string log_dir = "./Log/" + g_config.index_type + "/";
             system(("mkdir -p " + log_dir).c_str());
-            log_filename = log_dir + "test_log.txt";
+            // log_filename = log_dir + "test_log.txt";
             // log_filename = log_dir + g_config.index_type + "_" + (g_config.random ? "ran" : "seq") + "_latencyBreakdown" + ".txt";
-            log_filename = log_dir + g_config.index_type + "_" + (g_config.random ? "ran" : "seq") + "_segment_8" + ".txt";
+            // log_filename = log_dir + g_config.index_type + "_" + (g_config.random ? "ran" : "seq") + "_segment_8" + ".txt";
             // log_filename = log_dir + g_config.index_type + "_" + (g_config.random ? "ran" : "seq") + "_base" + ".txt";
+            // log_filename = log_dir + g_config.index_type + "_" + (g_config.random ? "ran" : "seq") + "_base_clustered" + ".txt";
+            log_filename = log_dir + g_config.index_type + "_" + (g_config.random ? "ran" : "seq") + "_base_sparse" + ".txt";
 
             // printf("log_filename: %s\n", log_filename.c_str());
         } else if (argc == 6) {
@@ -2833,7 +2836,7 @@ int main(int argc, char* argv[]) {
         // testers.push_back(make_unique<WOARTTester>(log));
         // testers.push_back(make_unique<WORTTester>(log));
         // testers.push_back(make_unique<ROARTTester>(log));
-        testers.push_back(make_unique<ROERTTester>(log));
+        // testers.push_back(make_unique<WRERTTester>(log));
         // testers.push_back(make_unique<ERTTester>(log));
 
         // testers.push_back(make_unique<FastFairTester>(log));
@@ -2842,8 +2845,8 @@ int main(int argc, char* argv[]) {
 
         std::string index_name = g_config.index_type;
         std::transform(index_name.begin(), index_name.end(), index_name.begin(), ::toupper);
-        if (index_name == "ROERT") {
-            testers.push_back(make_unique<ROERTTester>(log));
+        if (index_name == "WRERT") {
+            testers.push_back(make_unique<WRERTTester>(log));
         } else if (index_name == "ERT") {
             testers.push_back(make_unique<ERTTester>(log));
         } else if (index_name == "WORT") {
@@ -2875,7 +2878,7 @@ int main(int argc, char* argv[]) {
 
         // 找出在set1中但不在set2中的值
         // std::vector<uint64_t> diff_result;
-        // std::vector<uint64_t> vec1(unique_ROERT_keys.begin(), unique_ROERT_keys.end());
+        // std::vector<uint64_t> vec1(unique_WRERT_keys.begin(), unique_WRERT_keys.end());
         // std::vector<uint64_t> vec2(unique_ERT_keys.begin(), unique_ERT_keys.end());
         // std::sort(vec1.begin(), vec1.end());
         // std::sort(vec2.begin(), vec2.end());

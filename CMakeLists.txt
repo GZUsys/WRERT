@@ -9,10 +9,10 @@ project(nvmkv)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
 
-add_subdirectory(ert)
 add_subdirectory(fastalloc)
 add_subdirectory(rng)
-add_subdirectory(roert)
+add_subdirectory(ert)
+add_subdirectory(wrert)
 # add_subdirectory(fastfair)
 # add_subdirectory(lbtree)
 # add_subdirectory(wope)
@@ -25,6 +25,6 @@ add_subdirectory(roart)
 add_executable(nvmkv db_bench.cpp)
 
 target_link_libraries(nvmkv PRIVATE
-nvmkv-roert nvmkv-ert nvmkv-wort nvmkv-woart nvmkv-roart nvmkv-rng nvmkv-fastalloc)
+nvmkv-wrert nvmkv-ert nvmkv-wort nvmkv-woart nvmkv-roart nvmkv-rng nvmkv-fastalloc)
 
 
