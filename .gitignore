@@ -3,6 +3,9 @@
 # CMakeFiles 目录
 CMakeFiles/
 
+# 构建目录
+build/
+
 # 静态库文件
 *.a
 
