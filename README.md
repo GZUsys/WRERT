@@ -33,7 +33,6 @@ mkdir -p ./Log
 ./run.sh
 ```
 ### Contacts
-- **Hai Yang**: gs.haiyang24@gzu.edu.cn
 
 ### Reference
 
