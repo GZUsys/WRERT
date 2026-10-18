@@ -8,32 +8,34 @@ rm -rf /pmem0/wrert/*
 # rm -rf ./Log/ert/*
 # rm -rf ./Log/wort/*
 # rm -rf ./Log/woart/*
+# rm -rf ./Log/roart/*
 
-# indices=("wort" "roart" "ert" "wrert" "woart")
-# indices=("ert" "wrert")
-indices=("wrert")
-# workloads=("workloada" "workloadb" "workloadc" "workloadd" "workloade" "workloadf")
-workloads=("workloada" "workloadb" "workloadc")
-# workloads=("workloadc")
+# indices1=("wort" "roart" "ert" "wrert" "woart")
+# indices1=("wrert")
+# workloads1=("workloada" "workloadb" "workloadc" "workloadd" "workloade" "workloadf")
+# workloads=("workloada")
 
 # 单线程测试
-# for idx in "${indices[@]}"; do
-#     for workload in "${workloads[@]}"; do
-#         for i in {1..1}; do
-#             echo ">>> $idx $workload 第 $i 次 YCSB 测试 <<<" >> ./Log/"$idx"/"$idx"_"$workload"_res.txt 2>&1
-#             file_name="./workloads/$workload.spec"
-#             ./ycsbc -db $idx -threads 1 -P $file_name >> "./Log/"$idx"/"$idx"_"$workload"_res.txt" 2>&1
-#             echo ">>> $idx $workload 第 $i 次 YCSB 测试结束 <<<" >> ./Log/"$idx"/"$idx"_"$workload"_res.txt 2>&1
-#             rm -rf /pmem0/wrert/*
-#             wait
-#         done
-#     done
-# done
+for idx in "${indices1[@]}"; do
+    for workload in "${workloads1[@]}"; do
+        for i in {1..1}; do
+            echo ">>> $idx $workload 第 $i 次 YCSB 测试 <<<" >> ./Log/"$idx"/"$idx"_"$workload"_res.txt 2>&1
+            file_name="./workloads/$workload.spec"
+            ./ycsbc -db $idx -threads 1 -P $file_name >> "./Log/"$idx"/"$idx"_"$workload"_res.txt" 2>&1
+            echo ">>> $idx $workload 第 $i 次 YCSB 测试结束 <<<" >> ./Log/"$idx"/"$idx"_"$workload"_res.txt 2>&1
+            rm -rf /pmem0/wrert/*
+            wait
+        done
+    done
+done
 
 
 # threads=("1" "2" "4" "8" "12" "16" "20" "24" "28" "32" "36" "40")
-# threads=("8" "12" "16" "20" "24" "28" "32" "36" "40")
-threads=("2")
+threads=("36")
+# workloads2=("workloada" "workloadb" "workloadc")
+workloads2=("workloada")
+# indices2=("ert" "wrert")
+indices2=("wrert")
 
 # rm -rf ./Log/roart/multi_thread/workloada/*
 # rm -rf ./Log/roart/multi_thread/workloadb/*
@@ -56,8 +58,8 @@ threads=("2")
 # rm -rf ./Log/wrert/multi_thread/workloade/*
 # rm -rf ./Log/wrert/multi_thread/workloadf/*
 
-for idx in "${indices[@]}"; do
-    for workload in "${workloads[@]}"; do
+for idx in "${indices2[@]}"; do
+    for workload in "${workloads2[@]}"; do
         for thread in "${threads[@]}"; do
             for i in {1..1}; do
                 rm -rf /pmem0/wrert/*

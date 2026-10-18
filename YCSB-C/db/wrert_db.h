@@ -75,7 +75,6 @@ public:
         total_latency_ns_.store(0, std::memory_order_relaxed);
     }
 
-    // 实现 DB 接口
     int Read(const std::string& table, const std::string& key,
              const std::vector<std::string>* fields,
              std::vector<KVPair>& result) override {
@@ -84,14 +83,14 @@ public:
 
     int ReadUint64(const std::string& table, uint64_t key) override {
         uint64_t value = 0;
-        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::high_resolution_clock::now();
         value = wrert_->search(key);
-        auto end = std::chrono::high_resolution_clock::now();
-        read_count_.fetch_add(1, std::memory_order_relaxed);
-        op_count_.fetch_add(1, std::memory_order_relaxed);
-        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-        read_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
-        total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // auto end = std::chrono::high_resolution_clock::now();
+        // read_count_.fetch_add(1, std::memory_order_relaxed);
+        // op_count_.fetch_add(1, std::memory_order_relaxed);
+        // auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        // read_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
         // printf("Read key %llu: value %llu, 耗时: %llu ns\n",
         //        key, value, ns);
         return kOK;
@@ -105,16 +104,16 @@ public:
 
     int ScanUint64(const std::string& table, uint64_t start_key, uint64_t end_key) override {
         uint64_t count = 0;
-        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::high_resolution_clock::now();
         count = wrert_->lookupRange(start_key, end_key).size();
-        auto end = std::chrono::high_resolution_clock::now();
-        scan_count_.fetch_add(1, std::memory_order_relaxed);
-        op_count_.fetch_add(1, std::memory_order_relaxed);
-        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-        scan_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
-        total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
-        printf("Scan [%llu, %llu], count: %llu, 耗时: %.6f s\n",
-               start_key, end_key, count, ns / 1000000000.0);
+        // auto end = std::chrono::high_resolution_clock::now();
+        // scan_count_.fetch_add(1, std::memory_order_relaxed);
+        // op_count_.fetch_add(1, std::memory_order_relaxed);
+        // auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        // scan_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // printf("Scan [%llu, %llu], count: %llu, 耗时: %.6f s\n",
+        //        start_key, end_key, count, ns / 1000000000.0);
         return kOK;
     }
 
@@ -124,14 +123,14 @@ public:
     }
 
     int InsertUint64(const std::string& table, uint64_t key, uint64_t value) override {
-        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::high_resolution_clock::now();
         wrert_->insert(key, value);
-        auto end = std::chrono::high_resolution_clock::now();
-        insert_count_.fetch_add(1, std::memory_order_relaxed);
-        op_count_.fetch_add(1, std::memory_order_relaxed);
-        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-        insert_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
-        total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // auto end = std::chrono::high_resolution_clock::now();
+        // insert_count_.fetch_add(1, std::memory_order_relaxed);
+        // op_count_.fetch_add(1, std::memory_order_relaxed);
+        // auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        // insert_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
         // printf("Insert key %llu: value %llu, 耗时: %.6f s\n",
         //        key, value, ns / 1000000000.0);
         return kOK;
@@ -143,14 +142,14 @@ public:
     }
 
     int UpdateUint64(const std::string& table, uint64_t key, uint64_t value) override {
-        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::high_resolution_clock::now();
         wrert_->insert(key, value);
-        auto end = std::chrono::high_resolution_clock::now();
-        update_count_.fetch_add(1, std::memory_order_relaxed);
-        op_count_.fetch_add(1, std::memory_order_relaxed);
-        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-        update_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
-        total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // auto end = std::chrono::high_resolution_clock::now();
+        // update_count_.fetch_add(1, std::memory_order_relaxed);
+        // op_count_.fetch_add(1, std::memory_order_relaxed);
+        // auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        // update_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
         // printf("Update key %llu: value %llu, 耗时: %llu ns\n",
         //        key, value, ns);
         return kOK;

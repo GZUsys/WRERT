@@ -14,6 +14,12 @@ ERT_OBJS=$(ERT_SRCS:.cpp=.o)
 ROART_SRCS=roart/roart.cpp roart/roart_node.cpp roart/roart_key.cpp
 ROART_OBJS=$(ROART_SRCS:.cpp=.o)
 
+WORT_SRCS=wort/wort.cpp wort/wort.cpp
+WORT_OBJS=$(WORT_SRCS:.cpp=.o)
+
+WOART_SRCS=woart/woart.h woart/woart.cpp
+WOART_OBJS=$(WOART_SRCS:.cpp=.o)
+
 FASTALLOC_SRCS=fastalloc/fastalloc.cpp
 FASTALLOC_OBJS=$(FASTALLOC_SRCS:.cpp=.o)
 
@@ -27,7 +33,7 @@ all: $(SUBDIRS) $(EXEC)
 $(SUBDIRS):
 	$(MAKE) -C $@
 
-$(EXEC): $(wildcard *.cc) $(OBJECTS) $(WRERT_OBJS) $(ERT_OBJS) $(ROART_OBJS) $(FASTALLOC_OBJS) $(RNG_OBJS)
+$(EXEC): $(wildcard *.cc) $(OBJECTS) $(WRERT_OBJS) $(ERT_OBJS) $(ROART_OBJS) $(WORT_OBJS) $(WOART_OBJS) $(FASTALLOC_OBJS) $(RNG_OBJS)
 	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
 
 wrert/%.o: wrert/%.cpp
@@ -37,6 +43,12 @@ ert/%.o: ert/%.cpp
 	$(CC) $(CFLAGS) -c $< -o $@
 
 roart/%.o: roart/%.cpp
+	$(CC) $(CFLAGS) -c $< -o $@
+
+wort/%.o: wort/%.cpp
+	$(CC) $(CFLAGS) -c $< -o $@
+
+woart/%.o: woart/%.cpp
 	$(CC) $(CFLAGS) -c $< -o $@
 
 fastalloc/%.o: fastalloc/%.cpp

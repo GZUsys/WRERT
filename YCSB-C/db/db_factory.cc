@@ -16,6 +16,8 @@
 #include "db/wrert_db.h"
 #include "db/ert_db.h"
 #include "db/roart_db.h"
+#include "db/wort_db.h"
+#include "db/woart_db.h"
 
 using namespace std;
 using namespace wrert;
@@ -41,6 +43,11 @@ DB* DBFactory::CreateDB(utils::Properties& props) {
         return new ERTDB;
     } else if (props["dbname"] == "roart") {
         return new ROARTDB;
-    } else
+    } else if (props["dbname"] == "wort") {
+        return new WORTDB;
+    } else if (props["dbname"] == "woart") {
+        return new WOARTDB;
+    } else {
         return NULL;
+    }
 }

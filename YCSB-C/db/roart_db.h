@@ -75,14 +75,14 @@ public:
         return kOK;
     }
     int ReadUint64(const std::string& table, uint64_t key) override {
-        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::high_resolution_clock::now();
         roart_->get(key);
-        auto end = std::chrono::high_resolution_clock::now();
-        read_count_.fetch_add(1, std::memory_order_relaxed);
-        op_count_.fetch_add(1, std::memory_order_relaxed);
-        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-        read_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
-        total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // auto end = std::chrono::high_resolution_clock::now();
+        // read_count_.fetch_add(1, std::memory_order_relaxed);
+        // op_count_.fetch_add(1, std::memory_order_relaxed);
+        // auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        // read_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
         return kOK;
     }
 
@@ -91,16 +91,16 @@ public:
     }
     int ScanUint64(const std::string& table, uint64_t start_key, uint64_t end_key) override {
         uint64_t count = 0;
-        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::high_resolution_clock::now();
         count = roart_->scan(start_key, end_key, 100000000).size();
-        auto end = std::chrono::high_resolution_clock::now();
-        scan_count_.fetch_add(1, std::memory_order_relaxed);
-        op_count_.fetch_add(1, std::memory_order_relaxed);
-        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-        scan_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
-        total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
-        printf("Scan [%llu, %llu], count: %llu, 耗时: %.6f s\n",
-               start_key, end_key, count, ns / 1000000000.0);
+        // auto end = std::chrono::high_resolution_clock::now();
+        // scan_count_.fetch_add(1, std::memory_order_relaxed);
+        // op_count_.fetch_add(1, std::memory_order_relaxed);
+        // auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        // scan_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // printf("Scan [%llu, %llu], count: %llu, 耗时: %.6f s\n",
+        //        start_key, end_key, count, ns / 1000000000.0);
         return kOK;
     }
 
@@ -108,15 +108,15 @@ public:
         return kOK;
     }
     int InsertUint64(const std::string& table, uint64_t key, uint64_t value) override {
-        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::high_resolution_clock::now();
         roart_->put(key, value);
-        auto end = std::chrono::high_resolution_clock::now();
-        insert_count_.fetch_add(1, std::memory_order_relaxed);
-        op_count_.fetch_add(1, std::memory_order_relaxed);
-        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        // auto end = std::chrono::high_resolution_clock::now();
+        // insert_count_.fetch_add(1, std::memory_order_relaxed);
+        // op_count_.fetch_add(1, std::memory_order_relaxed);
+        // auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        // insert_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
         // printf("ns: %llu, op_count_: %llu\n", ns, op_count_.load(std::memory_order_relaxed));
-        insert_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
-        total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
         return kOK;
     }
 
@@ -124,14 +124,14 @@ public:
         return kOK;
     }
     int UpdateUint64(const std::string& table, uint64_t key, uint64_t value) override {
-        auto start = std::chrono::high_resolution_clock::now();
+        // auto start = std::chrono::high_resolution_clock::now();
         roart_->put(key, value);
-        auto end = std::chrono::high_resolution_clock::now();
-        update_count_.fetch_add(1, std::memory_order_relaxed);
-        op_count_.fetch_add(1, std::memory_order_relaxed);
-        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-        update_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
-        total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // auto end = std::chrono::high_resolution_clock::now();
+        // update_count_.fetch_add(1, std::memory_order_relaxed);
+        // op_count_.fetch_add(1, std::memory_order_relaxed);
+        // auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+        // update_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
+        // total_latency_ns_.fetch_add(ns, std::memory_order_relaxed);
         return kOK;
     }
 
