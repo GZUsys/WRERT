@@ -32,6 +32,13 @@ mkdir -p ./Log
 ```bash
 ./run.sh
 ```
+
+#### 2. Macro-Benchmark running
+```bash
+cd ./YCSB-C/
+./ycsb.sh
+```
+
 ### Contacts
 
 ### Reference
