@@ -1,7 +1,3 @@
-//
-// Created by 王柯 on 5/25/21.
-//
-
 #ifndef NVMKV_ROART_NODE_H
 #define NVMKV_ROART_NODE_H
 
@@ -21,7 +17,7 @@
 #include <map>
 #include <strings.h>
 #include <sys/time.h>
-#include <chrono> // 添加高精度时间测量头文件
+#include <chrono>
 
 using namespace std;
 

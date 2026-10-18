@@ -1,7 +1,3 @@
-//
-// Created by 王柯 on 2021-04-01.
-//
-
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -9,7 +5,7 @@
 #include <emmintrin.h>
 #include <assert.h>
 #include <x86intrin.h>
-#include <chrono> // 添加高精度时间测量头文件
+#include <chrono>
 #include "woart.h"
 
 #define mfence() asm volatile("mfence" ::: "memory")
@@ -22,21 +18,14 @@
 #define SET_LEAF(x) ((void*)((uintptr_t)x | 1))
 #define LEAF_RAW(x) ((woart_leaf*)((void*)((uintptr_t)x & ~1)))
 
-// 统计查询时访问每个节点的延迟（ns）、访问节点的个数
-std::vector<uint64_t> woart_per_search_per_node_latency_ = {}; // 每次搜索时访问每个节点的延迟
-
-// 统计范围查询时树遍历延迟（ns）、段访问个数、每个段扫描延迟（ns）
-std::vector<uint64_t> woart_range_segment_scan_latency_ = {}; // 范围查询每个段扫描延迟
-std::vector<uint64_t> woart_range_segment_leaf_latency_ = {}; // 范围查询每个叶子节点扫描延迟
-
-// 统计每次插入时树遍历延迟（ns）、节点分裂+节点扩容的延迟（ns）或者是叫节点重新调整延迟（ns）、节点更新的延迟（ns）
-std::vector<uint64_t> woart_per_insert_node_split_latency_ = {}; // 每次插入时更新节点的延迟
-std::vector<uint64_t> woart_per_insert_node_grow_latency_ = {};  // 每次插入时扩展节点的延迟
+std::vector<uint64_t> woart_per_search_per_node_latency_ = {};
+std::vector<uint64_t> woart_range_segment_scan_latency_ = {};
+std::vector<uint64_t> woart_range_segment_leaf_latency_ = {};
+std::vector<uint64_t> woart_per_insert_node_split_latency_ = {};
+std::vector<uint64_t> woart_per_insert_node_grow_latency_ = {};
 std::vector<uint64_t> woart_per_insert_node_update_latency_ = {};
-
-std::vector<uint64_t> woart_insert_segment_split_time_ = {};  // 插入分段时间
-std::vector<uint64_t> woart_insert_directory_grow_time_ = {}; // 插入目录扩展时间
-
+std::vector<uint64_t> woart_insert_segment_split_time_ = {};
+std::vector<uint64_t> woart_insert_directory_grow_time_ = {};
 uint64_t woart_memory_usage = 0;
 
 void flush_buffer(void* buf, unsigned long len, bool fence) {
@@ -189,10 +178,6 @@ static woart_node* alloc_node(uint8_t type) {
     return n;
 }
 
-/**
- * Initializes an woart tree
- * @return 0 on success.
- */
 int woart_tree_init(woart_tree* t) {
     t->root = NULL;
     t->size = 0;
@@ -267,10 +252,6 @@ static int check_prefix(const woart_node* n, const unsigned long key, int key_le
     return idx;
 }
 
-/**
- * Checks if a leaf matches
- * @return 0 on success.
- */
 static int leaf_matches(const woart_leaf* n, unsigned long key, int key_len, int depth) {
     (void)depth;
     // Fail if the key lengths are different
@@ -282,14 +263,6 @@ static int leaf_matches(const woart_leaf* n, unsigned long key, int key_len, int
     return !(n->key == key);
 }
 
-/**
- * Searches for a value in the woart tree
- * @arg t The tree
- * @arg key The key
- * @arg key_len The length of the key
- * @return NULL if the item was not found, otherwise
- * the value pointer is returned.
- */
 uint64_t woart_get(const woart_tree* t, const unsigned long key, int key_len) {
     woart_node** child;
     woart_node* n = t->root;
@@ -301,8 +274,6 @@ uint64_t woart_get(const woart_tree* t, const unsigned long key, int key_len) {
             n = (woart_node*)LEAF_RAW(n);
             // Check if the expanded path matches
             if (!leaf_matches((woart_leaf*)n, key, key_len, depth)) {
-                // 结束计时并输出结果
-
                 return *(uint64_t*)((woart_leaf*)n)->value;
             }
             return NULL;
@@ -313,8 +284,6 @@ uint64_t woart_get(const woart_tree* t, const unsigned long key, int key_len) {
             if (n->path.pwoartial_len) {
                 prefix_len = check_prefix(n, key, key_len, depth);
                 if (prefix_len != min(WOART_MAX_PREFIX_LEN, n->path.pwoartial_len)) {
-                    // 结束计时并输出结果
-
                     return NULL;
                 }
                 depth = depth + n->path.pwoartial_len;
@@ -772,15 +741,6 @@ RECURSE_SEARCH:;
     return NULL;
 }
 
-/**
- * Inserts a new value into the woart tree
- * @arg t The tree
- * @arg key The key
- * @arg key_len The length of the key
- * @arg value Opaque value.
- * @return NULL if the item was newly inserted, otherwise
- * the old value pointer is returned.
- */
 void* woart_put(woart_tree* t, const unsigned long key, int key_len, void* value, int value_len) {
     int old_val = 0;
     void* value_allocated = concurrency_fast_alloc(value_len);

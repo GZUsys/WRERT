@@ -15,10 +15,10 @@ CMakeCache.txt
 # CMakeLists.txt
 
 # Makefile 文件
-Makefile
+# Makefile
 
 # 混合工作负载
-YCSB-C/
+YCSB-C/Log/
 
 # 基准测试日志文件
 Log/

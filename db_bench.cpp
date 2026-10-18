@@ -20,10 +20,6 @@
 #include "rng/rng.h"
 #include "ert/ERT_int.h"
 #include "wrert/wrert.h"
-// #include "wrert/wrert_node.h"
-// #include "fastfair/fastfair.h"
-// #include "wope/wope.h"
-// #include "lbtree/lbtree.h"
 #include "wort/wort.h"
 #include "woart/woart.h"
 #include "roart/roart.h"
@@ -31,43 +27,37 @@
 using namespace std;
 using namespace wrert;
 
-// ==================== 全局配置参数 ====================
-// 基准测试参数
-static int FLAGS_test_num = 100000;               // 测试数据量
-static int FLAGS_clustered_num = 100000000;       // Clustered 数据集大小
-static int FLAGS_keys_per_subset = 32;            // 每个子集的键数量
-static int FLAGS_per_ops = 5000000;               // 每次操作数量
-static int FLAGS_range_query_size = 100;          // 范围查询大小
-static int FLAGS_memory_profile_interval = 10000; // 内存分析间隔
-static std::string FLAGS_file_path;               // 文件路径
-static bool FLAGS_on_pm = false;                  // 是否在持久内存上运行
-static std::string FLAGS_pm_path = "/pmem0/";     // PM 路径
-static std::string FLAGS_index_type = "";         // 索引类型
-static double FLAGS_selectivity = 1;              // 选择性
-static bool FLAGS_random = true;                  // 是否随机插入键
-static int FLAGS_seed = 1;                        // 随机种子
+static int FLAGS_test_num = 100000;
+static int FLAGS_clustered_num = 100000000;
+static int FLAGS_keys_per_subset = 32;
+static int FLAGS_per_ops = 5000000;
+static int FLAGS_range_query_size = 100;
+static int FLAGS_memory_profile_interval = 10000;
+static std::string FLAGS_file_path;
+static bool FLAGS_on_pm = false;
+static std::string FLAGS_pm_path = "/pmem0/";
+static std::string FLAGS_index_type = "";
+static double FLAGS_selectivity = 1;
+static bool FLAGS_random = true;
+static int FLAGS_seed = 1;
 
-// 数据集测试配置
-static bool FLAGS_test_dense = false;     // 是否测试 Dense 数据集
-static bool FLAGS_test_sparse = true;     // 是否测试 Sparse 数据集
-static bool FLAGS_test_clustered = false; // 是否测试 Clustered 数据集
+static bool FLAGS_test_dense = false;
+static bool FLAGS_test_sparse = true;
+static bool FLAGS_test_clustered = false;
 
-static bool FLAGS_test_variable = false;   // 是否测试 Variable 数据集
-static int FLAGS_test_variable_min = 8;    // 最小键长度
-static int FLAGS_test_variable_max = 1024; // 最大键长度
+static bool FLAGS_test_variable = false;
+static int FLAGS_test_variable_min = 8;
+static int FLAGS_test_variable_max = 1024;
 
-// YCSB 测试配置
-static bool FLAGS_test_ycsb = false;          // 是否测试 YCSB 数据集
-static int FLAGS_ycsb_threads = 1;            // YCSB 并发线程数
-static std::string FLAGS_ycsb_workload = "";  // YCSB 工作负载类型
-static std::string FLAGS_ycsb_data_file = ""; // YCSB 数据文件路径
+static bool FLAGS_test_ycsb = false;
+static int FLAGS_ycsb_threads = 1;
+static std::string FLAGS_ycsb_workload = "";
+static std::string FLAGS_ycsb_data_file = "";
 
-// YCSB 数据文件路径（LOAD 阶段）
 static std::map<std::string, std::string> FLAGS_ycsb_data_file_load = {
   {"Amazon", "./YCSB_Data/Amazon/workload_load.csv"},
   {"Wiki", "./YCSB_Data/Wiki/workload_load.csv"},
   {"AIiTianChi", "./YCSB_Data/AIiTianChi/workload_load.csv"}};
-//   {"Wiki", "./YCSB_Data/Wiki/load.csv"}};
 
 static std::map<std::string, int> FLAGS_ycsb_operations = {
   {"Load", 100000},
@@ -81,7 +71,6 @@ static std::map<std::string, std::string> YCSB_WORKLOAD_DESCRIPTIONS = {
   {"e", "短范围扫描: 95% 扫描操作, 5% 插入操作"},
   {"f", "读-修改-写: 50% 读操作, 50% 更新操作"}};
 
-// 获取YCSB工作负载描述
 std::string get_ycsb_workload_description(const std::string& workload) {
     auto it = YCSB_WORKLOAD_DESCRIPTIONS.find(workload);
     if (it != YCSB_WORKLOAD_DESCRIPTIONS.end()) {
@@ -90,9 +79,8 @@ std::string get_ycsb_workload_description(const std::string& workload) {
     return "未知工作负载类型";
 }
 
-// 输出配置
-static bool FLAGS_verbose = false;    // 详细输出模式
-static bool FLAGS_log_to_file = true; // 是否记录到文件
+static bool FLAGS_verbose = false;
+static bool FLAGS_log_to_file = true;
 
 enum class YCSBPhase {
     LOAD,
@@ -132,14 +120,14 @@ struct Config {
 
 struct PerformanceMetrics {
     struct OperationMetrics {
-        double throughput = 0.0;       // MOPS 或 KQPS
-        double latency = 0.0;          // 秒
-        double avg_time_us = 0.0;      // 微秒/操作
-        double total_time_us = 0.0;    // 总时间（微秒）
-        uint64_t operations_count = 0; // 操作数量
-        uint64_t bytes_processed = 0;  // 处理字节数
+        double throughput = 0.0;
+        double latency = 0.0;
+        double avg_time_us = 0.0;
+        double total_time_us = 0.0;
+        uint64_t operations_count = 0;
+        uint64_t bytes_processed = 0;
 
-        // 计算吞吐量（MOPS）
+        // MOPS
         void calculate_throughput(uint64_t num_ops) {
             operations_count = num_ops;
             if (latency > 0) {
@@ -147,7 +135,7 @@ struct PerformanceMetrics {
             }
         }
 
-        // 计算范围查询吞吐量（KQPS）
+        // KQPS
         void calculate_range_throughput(uint64_t num_results) {
             operations_count = num_results;
             if (latency > 0) {
@@ -206,11 +194,11 @@ struct PerformanceMetrics {
 };
 
 struct OperationRecord {
-    string operation_type; // 操作类型："INSERT", "READ", "UPDATE", "SCAN", "DELETE"
-    uint64_t key;          // 键
-    uint64_t value;        // 值（自增ID）
-    char op_char;          // 操作类型字符标识
-    YCSBPhase phase;       // 操作阶段：LOAD 或 RUN
+    string operation_type; // "INSERT", "READ", "UPDATE", "SCAN", "DELETE"
+    uint64_t key;
+    uint64_t value;
+    char op_char;
+    YCSBPhase phase;
 
     OperationRecord(const string& op, uint64_t k, uint64_t v, char oc, YCSBPhase p) : operation_type(op), key(k), value(v), op_char(oc), phase(p) {}
 };
@@ -243,15 +231,13 @@ static string dataset_display_name(PerformanceMetrics::DatasetType type) {
 }
 
 struct VariableKey {
-    std::unique_ptr<char[]> data; // 动态分配的字符数组
-    uint64_t length;              // 键的实际长度
+    std::unique_ptr<char[]> data;
+    uint64_t length;
 
-    // 默认构造函数
     VariableKey() : length(0) {
         data = nullptr;
     }
 
-    // 构造函数
     VariableKey(uint64_t len) : length(len) {
         data = std::make_unique<char[]>(length);
         static const std::string charset =
@@ -268,7 +254,6 @@ struct VariableKey {
         }
     }
 
-    // 拷贝构造函数 - 添加这一部分
     VariableKey(const VariableKey& other) : length(other.length) {
         if (other.data) {
             data = std::make_unique<char[]>(length);
@@ -278,12 +263,10 @@ struct VariableKey {
         }
     }
 
-    // 移动构造函数
     VariableKey(VariableKey&& other) noexcept : length(other.length), data(std::move(other.data)) {
         other.length = 0;
     }
 
-    // 拷贝赋值运算符
     VariableKey& operator=(const VariableKey& other) {
         if (this != &other) {
             length = other.length;
@@ -297,7 +280,6 @@ struct VariableKey {
         return *this;
     }
 
-    // 移动赋值运算符
     VariableKey& operator=(VariableKey&& other) noexcept {
         if (this != &other) {
             length = other.length;
@@ -321,7 +303,6 @@ public:
             if (!log_file_.is_open()) {
                 cerr << "WARNING: 无法打开日志文件: " << filename << "，将输出到标准输出" << endl;
             } else {
-                // 记录开始时间
                 time_t now = time(nullptr);
                 char time_str[100];
                 strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", localtime(&now));
@@ -430,19 +411,16 @@ private:
 
 class YCSBLoader {
 private:
-    vector<OperationRecord> load_records; // Load 阶段的操作记录
-    vector<OperationRecord> run_records;  // Run 阶段的操作记录
-    LogManager* log_manager_;             // 日志管理器指针
+    vector<OperationRecord> load_records;
+    vector<OperationRecord> run_records;
+    LogManager* log_manager_;
 
 public:
     YCSBLoader(const string& data_file, LogManager* log_manager = nullptr) : log_manager_(log_manager) {
-        // 加载 YCSB 数据文件（LOAD 阶段）
         load_ycsb_data(g_config.ycsb_data_file_load, YCSBPhase::LOAD);
-        // 加载 YCSB 数据文件（RUN 阶段）
         // load_ycsb_data(data_file, YCSBPhase::RUN);
     }
 
-    // 加载 YCSB 数据文件
     void load_ycsb_data(const string& data_file, YCSBPhase phase) {
         ifstream file(data_file);
         if (!file.is_open()) {
@@ -457,34 +435,29 @@ public:
         static uint64_t auto_increment_id = 1;
         uint64_t value;
 
-        // 分别记录插入、读取、更新的操作数
         int insert_count = 0;
         int read_count = 0;
         int update_count = 0;
 
-        uint64_t min_key = UINT64_MAX; // 初始化为最大可能值
+        uint64_t min_key = UINT64_MAX;
         uint64_t max_key = 0;
 
         while (getline(file, line)) {
             line_num++;
 
-            // 跳过空行
             if (line.empty()) {
                 continue;
             }
 
-            // 解析 YCSB 数据文件. 格式格式: operation key
             istringstream iss(line);
             string operation;
             uint64_t key;
 
             // if (iss >> operation >> key) {
             if (iss >> key) {
-                // 更新最小值和最大值
                 max_key = max(max_key, key);
                 min_key = min(min_key, key);
 
-                // 根据 operation 映射操作类型
                 char op_char = ' ';
                 operation = "insert";
                 // if (operation == "INSERT" || operation == "insert") {
@@ -503,7 +476,6 @@ public:
                 //     op_char = 's';
                 // }
 
-                // 如果是 load 阶段的操作，记录到 load_records；如果是 run 阶段的操作，记录到 run_records
                 if (phase == YCSBPhase::LOAD) {
                     load_records.push_back(OperationRecord(operation, key, value, op_char, phase));
                 } else {
@@ -514,14 +486,12 @@ public:
             }
         }
 
-        // 在填充 load_records 后添加以下代码：
-        std::random_device rd; // 用于生成随机种子
-        std::mt19937 g(rd());  // 使用梅森旋转算法的随机数生成器
+        std::random_device rd;
+        std::mt19937 g(rd());
         std::shuffle(load_records.begin(), load_records.end(), g);
 
         log_manager_->log_info("  |-> LOAD 阶段 Key 取值区间", to_string(min_key) + " - " + to_string(max_key));
 
-        // 打印前几行数据
         int print_count = 0;
         while (print_count < 100) {
             if (phase == YCSBPhase::LOAD) {
@@ -535,24 +505,21 @@ public:
             print_count++;
         }
 
-        // 提取所有键值
         // std::vector<uint64_t> keys;
         // keys.reserve(load_records.size());
         // for (const auto& record : load_records) {
         //     keys.push_back(record.key);
         // }
 
-        // // 排序键值以便分析
         // std::sort(keys.begin(), keys.end());
 
         // // 获取最小值和最大值
         // min_key = keys.front();
         // max_key = keys.back();
 
-        // // 计算稀疏度
-        // uint64_t range_size = max_key - min_key + 1;                                 // 整个范围的大小
-        // uint64_t unique_keys = std::unique(keys.begin(), keys.end()) - keys.begin(); // 唯一键的数量
-        // double sparsity = static_cast<double>(unique_keys) / range_size;             // 稀疏度 = 唯一键数量 / 范围大小
+        // uint64_t range_size = max_key - min_key + 1;
+        // uint64_t unique_keys = std::unique(keys.begin(), keys.end()) - keys.begin();
+        // double sparsity = static_cast<double>(unique_keys) / range_size;
 
         // printf("数据集稀疏度分析:\n");
         // printf("键范围: [%llu, %llu]\n", min_key, max_key);
@@ -574,7 +541,6 @@ public:
         } else {
             g_config.ycsb_operations["Run"] = static_cast<int>(run_records.size());
             log_manager_->log_info("  |-> RUN 阶段操作数", to_string(run_records.size()));
-            // 分别打印插入、读取、更新的操作数，以及占比
             log_manager_->log_info("  |-> insert 操作数: " + to_string(insert_count) + ", 占比", to_string(static_cast<float>(insert_count) / static_cast<float>(run_records.size()) * 100) + "%");
             log_manager_->log_info("  |-> read 操作数: " + to_string(read_count) + ", 占比", to_string(static_cast<float>(read_count) / static_cast<float>(run_records.size()) * 100) + "%");
             log_manager_->log_info("  |-> update 操作数: " + to_string(update_count) + ", 占比", to_string(static_cast<float>(update_count) / static_cast<float>(run_records.size()) * 100) + "%");
@@ -583,12 +549,10 @@ public:
         file.close();
     }
 
-    // 获取操作记录列表
     const vector<OperationRecord>& get_operation_records(YCSBPhase phase) const {
         return phase == YCSBPhase::LOAD ? load_records : run_records;
     }
 
-    // 获取操作记录数量（根据阶段）
     size_t size(YCSBPhase phase) const {
         return phase == YCSBPhase::LOAD ? load_records.size() : run_records.size();
     }
@@ -615,8 +579,8 @@ private:
     uint64_t* keys_dense_ = nullptr;
     uint64_t* keys_sparse_ = nullptr;
     uint64_t* keys_clustered_ = nullptr;
-    // 在 DatasetManager private 区域：
-    std::vector<VariableKey> variable_keys_ = {}; // 用于存储变长键数据集
+
+    std::vector<VariableKey> variable_keys_ = {};
     unique_ptr<YCSBLoader> ycsb_loader_ = nullptr;
     uint64_t max_dense_key_ = 0;
     uint64_t max_sparse_key_ = 0;
@@ -645,7 +609,6 @@ private:
             keys_dense_[i] = rng_next(&r) % config_.test_num;
             max_dense_key_ = max(max_dense_key_, keys_dense_[i]);
             min_dense_key_ = min(min_dense_key_, keys_dense_[i]);
-            // 记录不重复的密集数据集
             unique_dense_keys.insert(keys_dense_[i]);
         }
 
@@ -655,7 +618,6 @@ private:
         log.log_info("  |-> Dense 数据集总量", to_string(config_.test_num));
         log.log_info("  |-> Dense 数据集 Key 取值区间", "[" + to_string(min_dense_key_) + ", " + to_string(max_dense_key_) + "]");
 
-        // 打印前几行数据
         int print_count = 0;
         while (print_count < 100) {
             log.log_info("  |-> Dense 数据集 Key " + to_string(print_count), to_string(keys_dense_[print_count]));
@@ -684,7 +646,6 @@ private:
             keys_sparse_[i] = rng_next(&r);
             max_sparse_key_ = max(max_sparse_key_, keys_sparse_[i]);
             min_sparse_key_ = min(min_sparse_key_, keys_sparse_[i]);
-            // 记录不重复的稀疏数据集
             unique_sparse_keys.insert(keys_sparse_[i]);
         }
 
@@ -697,7 +658,6 @@ private:
         log.log_info("  |-> Sparse 数据集总量", to_string(config_.test_num));
         log.log_info("  |-> Sparse 数据集 Key 取值区间", "[" + to_string(min_sparse_key_) + ", " + to_string(max_sparse_key_) + "]");
 
-        // 打印前几行数据
         int print_count = 0;
         // while (print_count < config_.test_num) {
         while (print_count < 100) {
@@ -989,7 +949,6 @@ public:
 
     virtual ~DataStructureTester() {}
 
-    // 获取测试器名称
     const string& get_name() const {
         return name_;
     }
@@ -998,11 +957,9 @@ public:
         TestResult result{name_, PerformanceMetrics()};
         auto& metrics = result.metrics;
 
-        // 创建一个临时的 OperationMetrics 用于整体测试计时
         PerformanceMetrics::OperationMetrics overall_metrics;
         TestTimer timer(name_, log_, overall_metrics);
 
-        // 初始化数据结构
         log_.log_section("   >>> 初始化索引结构: " + name_);
         if (!initialize()) {
             log_.log_section("   >>> 初始化索引结构: " + name_ + " 失败");
@@ -1063,16 +1020,12 @@ protected:
         log_.log_info("  |-> " + display_name + " 数据集总量 ", to_string(count));
         log_.log_info("  |-> " + display_name + " 数据集最大 key ", to_string(max_key));
 
-        // 测试插入;
         test_operation("insert", keys, nullptr, count, type, YCSBPhase::NULL_PHASE, PerformanceMetrics::INSERT, metrics);
 
-        // 测试范围查询
-        // test_range_queries(min_key, max_key, type, metrics);
+        test_range_queries(min_key, max_key, type, metrics);
 
-        // 测试查询
         test_operation("search", keys, nullptr, count, type, YCSBPhase::NULL_PHASE, PerformanceMetrics::SEARCH, metrics);
 
-        // 分析内存使用
         analyze_memory(type, metrics);
     }
 
@@ -1085,10 +1038,8 @@ protected:
         log_.log_section("   >>> 开始测试 " + display_name + " 数据集");
         log_.log_info("  |-> " + display_name + " 数据集总量 ", to_string(count));
 
-        // 测试插入;
         test_variable_operation("insert", keys, count, type, PerformanceMetrics::INSERT, metrics);
 
-        // 测试查询
         test_variable_operation("search", keys, count, type, PerformanceMetrics::SEARCH, metrics);
     }
 
@@ -1099,7 +1050,6 @@ protected:
         uint64_t result_count = 0;
         double time_us = 0.0;
 
-        // 根据是插入还是搜索，调用不同的测试函数
         if (op_type == PerformanceMetrics::INSERT) {
             test_variable_insert(keys, count, dataset_type, time_us);
         } else if (op_type == PerformanceMetrics::SEARCH) {
@@ -1140,13 +1090,10 @@ protected:
         log_.log_info("  |-> " + workload_name + " 数据集总量 Run", to_string(loader->size(YCSBPhase::RUN)));
         log_.log_info("  |-> " + workload_name + " 线程数", to_string(g_config.ycsb_threads));
 
-        // 预加载阶段 Load 阶段 - 计算整个工作负载的总体吞吐量
         test_operation(workload_name + " Load", nullptr, loader, load_count, ycsb_type, YCSBPhase::LOAD, PerformanceMetrics::YCSB_LOAD, metrics);
 
-        // 测试 YCSB 测试 - 计算整个工作负载的总体吞吐量
         // test_operation(g_config.ycsb_workload + " workload", nullptr, loader, run_count, ycsb_type, YCSBPhase::RUN, PerformanceMetrics::YCSB_RUN, metrics);
 
-        // 分析内存使用
         analyze_memory(ycsb_type, metrics);
     }
 
@@ -1164,7 +1111,6 @@ protected:
         uint64_t result_count = 0;
         double time_us = 0.0;
 
-        // 根据是插入还是搜索，调用不同的测试函数
         if (op_type == PerformanceMetrics::INSERT) {
             test_insert(keys, count, dataset_type, time_us);
         } else if (op_type == PerformanceMetrics::SEARCH) {
@@ -1204,10 +1150,10 @@ protected:
           //   {0.25, PerformanceMetrics::RANGE_001},
           //   {0.5, PerformanceMetrics::RANGE_005},
           //   {0.75, PerformanceMetrics::RANGE_01},
-          //   {1.0, PerformanceMetrics::RANGE_1},
+          {1.0, PerformanceMetrics::RANGE_1},
         };
 
-        selectivities.push_back({g_config.selectivity, PerformanceMetrics::RANGE_001});
+        // selectivities.push_back({g_config.selectivity, PerformanceMetrics::RANGE_001});
 
         for (auto& [selectivity, op_type] : selectivities) {
             uint64_t end = 0;
@@ -1260,23 +1206,19 @@ protected:
         string dataset_name = dataset_display_name(type);
         log_.log_section("   >>> " + dataset_name + " 数据集内存使用分析");
 
-        // 获取内存使用量（字节）- 与main.cpp保持一致
         uint64_t memory_bytes = get_memory_usage(type);
         auto& memory = metrics.get_memory(type);
         memory.bytes = memory_bytes;
 
-        // 计算空间利用率 - 与main.cpp保持一致
-        const uint64_t key_value_size = 16; // 8字节键 + 8字节值
+        const uint64_t key_value_size = 16;
         uint64_t effective_data_size = 0;
 
-        // 根据数据集类型确定数据大小
         if (type == PerformanceMetrics::DENSE || type == PerformanceMetrics::SPARSE) {
             effective_data_size = g_config.test_num * key_value_size;
         } else if (type == PerformanceMetrics::CLUSTERED) {
             effective_data_size = g_config.clustered_num * key_value_size;
         }
 
-        // 计算空间利用率（百分比）- 与main.cpp保持一致
         double space_utilization = 0.0;
         if (memory_bytes > 0) {
             space_utilization = (static_cast<double>(effective_data_size) / memory_bytes) * 100.0;
@@ -1297,7 +1239,7 @@ protected:
 
     template <typename Func>
     double measure_time(Func func) {
-        sleep(1); // 确保系统稳定
+        sleep(1);
 
         timeval start, end;
         gettimeofday(&start, NULL);
@@ -1361,7 +1303,6 @@ unordered_set<uint64_t> unique_WORT_keys;
 unordered_set<uint64_t> unique_WOART_keys;
 unordered_set<uint64_t> unique_ROART_keys;
 
-// ==================== 具体数据结构测试器实现 ====================
 class WRERTTester : public DataStructureTester {
 private:
     WRERT* wrert_dense_ = nullptr;
@@ -1491,7 +1432,7 @@ protected:
         time_us = measure_time([&]() {
             for (int i = 0; i < count; i++) {
                 wrert->search(keys[i]);
-                // unique_WRERT_keys.insert(wrert->search(keys[i]));
+                unique_WRERT_keys.insert(wrert->search(keys[i]));
                 // show_progress(i + 1, count, "查询");
             }
         });
@@ -1523,7 +1464,6 @@ protected:
         // });
         char buf[128];
 
-        // 获取当前 Key 的指针和长度
         const char* key_data = keys[1].data.get();
         uint64_t key_len = keys[1].length;
         std::string temp_str(key_data, key_len);
@@ -1784,7 +1724,6 @@ protected:
         // });
         char buf[128];
 
-        // 获取当前 Key 的指针和长度
         const char* key_data = keys[1].data.get();
         uint64_t key_len = keys[1].length;
         std::string temp_str(key_data, key_len);
@@ -2547,10 +2486,8 @@ public:
     }
 
     static void print_detailed_comparison(const vector<DataStructureTester::TestResult>& results, LogManager& log) {
-        // 为每个指标创建排序输出
         print_sorted_metrics(results, log);
 
-        // 打印每个数据结构的完整性能报告
         if (!g_config.test_ycsb) {
             for (const auto& result : results) {
                 print_structure_report(result, log);
@@ -2587,13 +2524,11 @@ private:
           {"YCSB_LOAD", PerformanceMetrics::YCSB_LOAD},
           {"YCSB_RUN", PerformanceMetrics::YCSB_RUN}};
 
-        // 对每个数据集类型和操作类型进行排序
         for (auto dataset_type : dataset_types) {
             string dataset_name = dataset_display_name(dataset_type);
             bool has_ycsb = (dataset_type >= PerformanceMetrics::YCSB_WORKLOAD_A && dataset_type <= PerformanceMetrics::YCSB_WORKLOAD_F);
 
             for (auto& [op_name, op_type] : operations) {
-                // 跳过 YCSB 相关的非 YCSB 数据集操作
                 if (has_ycsb && op_type != PerformanceMetrics::YCSB_LOAD && op_type != PerformanceMetrics::YCSB_RUN) {
                     continue;
                 }
@@ -2610,7 +2545,6 @@ private:
                     }
                 }
 
-                // 按延迟从低到高排序（性能从好到差）
                 sort(sorted_data.begin(), sorted_data.end(),
                      [](const auto& a, const auto& b) { return get<1>(a) < get<1>(b); });
 
@@ -2634,7 +2568,6 @@ private:
                 }
             }
 
-            // 内存使用排序（从低到高）
             vector<tuple<string, double, double>> memory_sorted;
             for (const auto& result : results) {
                 if (result.metrics.memory.count(dataset_type)) {
@@ -2643,7 +2576,6 @@ private:
                 }
             }
 
-            // 按内存使用从低到高排序
             sort(memory_sorted.begin(), memory_sorted.end(),
                  [](const auto& a, const auto& b) { return get<1>(a) < get<1>(b); });
 
@@ -2668,7 +2600,6 @@ private:
         for (auto dataset_type : dataset_types) {
             string dataset_name = dataset_display_name(dataset_type);
 
-            // 检查该数据集是否有数据
             if (!result.metrics.operations.count(dataset_type) && !result.metrics.memory.count(dataset_type)) {
                 continue;
             }
@@ -2678,19 +2609,16 @@ private:
             if (result.metrics.operations.count(dataset_type)) {
                 const auto& ops = result.metrics.operations.at(dataset_type);
 
-                // 插入性能
                 if (ops.count(PerformanceMetrics::INSERT)) {
                     const auto& insert = ops.at(PerformanceMetrics::INSERT);
                     log.log("    插入: 延迟=" + to_string_fixed(insert.latency, 6) + " s, 吞吐量=" + to_string_fixed(insert.throughput, 6) + " MOPS, 平均每操作时间=" + to_string_fixed(insert.avg_time_us, 6) + " μs/op");
                 }
 
-                // 查询性能
                 if (ops.count(PerformanceMetrics::SEARCH)) {
                     const auto& search = ops.at(PerformanceMetrics::SEARCH);
                     log.log("    查询: 延迟=" + to_string_fixed(search.latency, 6) + " s, 吞吐量=" + to_string_fixed(search.throughput, 6) + " MOPS, 平均每操作时间=" + to_string_fixed(search.avg_time_us, 6) + " μs/op");
                 }
 
-                // 范围查询性能
                 vector<pair<string, PerformanceMetrics::OperationType>> ranges = {
                   {"0.1%", PerformanceMetrics::RANGE_001},
                   {"0.5%", PerformanceMetrics::RANGE_005},
@@ -2704,7 +2632,6 @@ private:
                     }
                 }
 
-                // 内存信息
                 if (result.metrics.memory.count(dataset_type)) {
                     const auto& memory = result.metrics.memory.at(dataset_type);
                     log.log("    内存: 使用量=" + to_string_fixed(memory.mb(), 2) + " MB, 空间利用率=" + to_string_fixed(memory.utilization_percent, 2) + "%");
@@ -2715,13 +2642,11 @@ private:
 };
 
 int main(int argc, char* argv[]) {
-    // 在内存中，不使用 PM 模式
     if (argc == 2) {
         g_config.test_num = atoi(argv[1]);
         cout << "测试数据量: " << g_config.test_num << " 个键" << endl;
     }
 
-    // 在 PM 模式下运行
     if (argc == 3) {
         g_config.on_pm = true;
         g_config.test_num = atoi(argv[1]);
@@ -2730,7 +2655,6 @@ int main(int argc, char* argv[]) {
         cout << "PM 模式启用, PM 路径: " << g_config.pm_path << endl;
     }
 
-    // 在 PM 模式下运行
     if (argc == 5) {
         g_config.on_pm = true;
         g_config.test_num = atoi(argv[1]);
@@ -2741,7 +2665,6 @@ int main(int argc, char* argv[]) {
         cout << "PM 模式启用, PM 路径: " << g_config.pm_path << endl;
     }
 
-    // 在 PM 模式下运行
     if (argc == 6) {
         g_config.on_pm = true;
         g_config.test_num = atoi(argv[1]);
@@ -2753,7 +2676,6 @@ int main(int argc, char* argv[]) {
         cout << "PM 模式启用, PM 路径: " << g_config.pm_path << endl;
     }
 
-    // 在 PM 模式下运行
     if (argc == 4) {
         g_config.on_pm = true;
         g_config.test_num = atoi(argv[1]);
@@ -2767,10 +2689,8 @@ int main(int argc, char* argv[]) {
     cout << "对比结果将保存到: ./Result/ 目录下的 CSV 文件" << endl;
 
     try {
-        // 创建日志管理器
         string log_filename;
         if (g_config.test_ycsb) {
-            // 解析数据集类型：从数据文件路径中提取数据集名称
             string dataset_name = "unknown";
             if (!g_config.ycsb_data_file.empty()) {
                 size_t last_slash = g_config.ycsb_data_file.find_last_of('/');
@@ -2822,16 +2742,13 @@ int main(int argc, char* argv[]) {
         }
         LogManager log(log_filename);
 
-        // 初始化内存分配器
         log.log_section("   >>> 初始化内存分配器...");
         init_fast_allocator(true, g_config.on_pm, g_config.pm_path.c_str());
         log.log_section("   >>> 初始化内存分配器完成");
         log.log_Line_break();
 
-        // 准备数据集，如果是基准测试则生成数据集，如果是 YCSB 测试则加载数据集
         DatasetManager dataset(g_config, log);
 
-        // 创建所有测试器
         vector<unique_ptr<DataStructureTester>> testers;
         // testers.push_back(make_unique<WOARTTester>(log));
         // testers.push_back(make_unique<WORTTester>(log));
@@ -2857,38 +2774,21 @@ int main(int argc, char* argv[]) {
             testers.push_back(make_unique<ROARTTester>(log));
         }
 
-        // 运行所有测试
         log.log_section("   >>> 开始进行性能对比测试...");
         log.log_info("  |-> 测试索引数量 ", to_string(testers.size()));
 
-        // 循环打印每个测试器的名称与序号
         for (int i = 0; i < testers.size(); i++) {
             log.log_info("  |-> 测试索引 " + to_string(i + 1) + " ", testers[i]->get_name());
         }
 
         vector<DataStructureTester::TestResult> results;
 
-        // 运行每个测试器
         for (auto& tester : testers) {
             results.push_back(tester->run_test(dataset));
             log.log_Line_break();
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(2000)); // 等待2000毫秒
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
         }
-
-        // 找出在set1中但不在set2中的值
-        // std::vector<uint64_t> diff_result;
-        // std::vector<uint64_t> vec1(unique_WRERT_keys.begin(), unique_WRERT_keys.end());
-        // std::vector<uint64_t> vec2(unique_ERT_keys.begin(), unique_ERT_keys.end());
-        // std::sort(vec1.begin(), vec1.end());
-        // std::sort(vec2.begin(), vec2.end());
-        // std::set_symmetric_difference(vec1.begin(), vec1.end(),
-        //                               vec2.begin(), vec2.end(),
-        //                               std::back_inserter(diff_result));
-        // std::cout << "发现 " << diff_result.size() << " 个不一样的值：" << std::endl;
-        // for (const auto& val : diff_result) {
-        //     std::cout << std::dec << val << std::endl;
-        // }
 
         ResultExporter::print_summary(results, log);
         log.log_section("   >>> 各测试索引结构性能对比完成");
@@ -2899,7 +2799,6 @@ int main(int argc, char* argv[]) {
         log.log_section("   >>> 释放内存完成");
         log.log_section("   >>> 测试完成");
 
-        // 记录结束时间
         time_t end_now = time(nullptr);
         char end_time_str[100];
         strftime(end_time_str, sizeof(end_time_str), "%Y-%m-%d %H:%M:%S\n", localtime(&end_now));

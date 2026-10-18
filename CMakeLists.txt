@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.10...3.19)
 project(nvmkv)
 
-# 开启优化 
 # set(CMAKE_BUILD_TYPE Release)
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
@@ -13,14 +12,10 @@ add_subdirectory(fastalloc)
 add_subdirectory(rng)
 add_subdirectory(ert)
 add_subdirectory(wrert)
-# add_subdirectory(fastfair)
-# add_subdirectory(lbtree)
-# add_subdirectory(wope)
 add_subdirectory(wort)
 add_subdirectory(woart)
 add_subdirectory(roart)
 
-# add_executable(nvmkv mulit_thread_main.cpp)
 # add_executable(nvmkv db_recovery.cpp)
 add_executable(nvmkv db_bench.cpp)
 

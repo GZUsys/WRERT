@@ -1,7 +1,3 @@
-//
-// Created by 王柯 on 2021-03-31.
-//
-
 #ifndef NVMKV_WORT_H
 #define NVMKV_WORT_H
 
@@ -33,20 +29,14 @@
 
 typedef int (*wort_callback)(void* data, const unsigned char* key, uint32_t key_len, void* value);
 
-// 统计查询时访问每个节点的延迟（ns）、访问节点的个数
-extern std::vector<uint64_t> wort_per_search_per_node_latency_; // 每次搜索时访问每个节点的延迟
-
-// 统计范围查询时树遍历延迟（ns）、段访问个数、每个段扫描延迟（ns）
-extern std::vector<uint64_t> wort_range_segment_scan_latency_; // 范围查询每个段扫描延迟
-extern std::vector<uint64_t> wort_range_segment_leaf_latency_; // 范围查询每个叶子节点扫描延迟
-
-// 统计每次插入时树遍历延迟（ns）、节点分裂+节点扩容的延迟（ns）或者是叫节点重新调整延迟（ns）、节点更新的延迟（ns）
-extern std::vector<uint64_t> wort_per_insert_node_split_latency_;  // 每次插入时更新节点的延迟
-extern std::vector<uint64_t> wort_per_insert_node_grow_latency_;   // 每次插入时扩展节点的延迟
-extern std::vector<uint64_t> wort_per_insert_node_update_latency_; // 每次插入时更新节点的延迟
-
-extern std::vector<uint64_t> wort_insert_segment_split_time_;  // 插入分段时间
-extern std::vector<uint64_t> wort_insert_directory_grow_time_; // 插入目录扩展时间
+extern std::vector<uint64_t> wort_per_search_per_node_latency_;
+extern std::vector<uint64_t> wort_range_segment_scan_latency_;
+extern std::vector<uint64_t> wort_range_segment_leaf_latency_;
+extern std::vector<uint64_t> wort_per_insert_node_split_latency_;
+extern std::vector<uint64_t> wort_per_insert_node_grow_latency_;
+extern std::vector<uint64_t> wort_per_insert_node_update_latency_;
+extern std::vector<uint64_t> wort_insert_segment_split_time_;
+extern std::vector<uint64_t> wort_insert_directory_grow_time_;
 
 extern uint64_t wort_memory_usage;
 
@@ -95,33 +85,12 @@ typedef struct
     uint64_t size;
 } wort_tree;
 
-/**
- * Initializes an wort tree
- * @return 0 on success.
- */
 int wort_tree_init(wort_tree* t);
 
 wort_tree* new_wort_tree();
 
-/**
- * Inserts a new value into the wort tree
- * @arg t The tree
- * @arg key The key
- * @arg key_len The length of the key
- * @arg value Opaque value.
- * @return NULL if the item was newly inserted, otherwise
- * the old value pointer is returned.
- */
 void* wort_put(wort_tree* t, const unsigned long key, int key_len, void* value, int value_len = 8);
 
-/**
- * Searches for a value in the wort tree
- * @arg t The tree
- * @arg key The key
- * @arg key_len The length of the key
- * @return NULL if the item was not found, otherwise
- * the value pointer is returned.
- */
 uint64_t wort_get(const wort_tree* t, const unsigned long key, int key_len);
 
 void wort_all_subtree_kv(wort_node* n, vector<wort_key_value>& res);

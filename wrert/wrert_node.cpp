@@ -47,23 +47,6 @@ uint64_t WRERTBucket::getValue(uint64_t key, bool& keyValueFlag) {}
 
 int WRERTBucket::findPutPlace(uint64_t key, uint64_t keyLength, uint64_t depth) {}
 
-// ==================== WRERTSegmentNode 类实现 ====================
-
-// bool WRERTSegmentNode::tryReadLock() {
-// }
-
-// bool WRERTSegmentNode::tryWriteLock() {
-// }
-
-// void WRERTSegmentNode::readUnlock() {
-// }
-
-// void WRERTSegmentNode::writeUnlock() {
-// }
-
-// bool WRERTSegmentNode::casLockState(uint8_t expected, uint8_t desired) {
-// }
-
 // ==================== WRERTHeader 类实现 ====================
 
 int WRERTHeader::computePrefix(uint64_t key, int startPosition, uint32_t* arrayMatchLength) {
@@ -344,153 +327,59 @@ OperationResults WRERTNode::putSegNode(uint64_t subKey, uint64_t value, uint16_t
 
 WRERTSlotKeyValue* WRERTNode::getSegNode(uint64_t subKey) {
     const uint8_t globalDepth = this->directoryNode.directory.globalDepth;
-    // 使用子键的 MSB 作为段索引
     const uint64_t segmentIndex = WRERT_GET_SEGMENT_NUMBER(subKey, WRERT_NODE_SPAN, globalDepth);
 
-    // 获取段节点指针
     WRERTSegmentNode* segmentNode = reinterpret_cast<WRERTSegmentNode*>(
       WRERT_GET_SEGMENT_POSITION(&this->directoryNode, segmentIndex));
-
-    // 获取段指针
     WRERTSegment* segment = reinterpret_cast<WRERTSegment*>(segmentNode->segmentPtr);
 
-    // 共享桶在段中的位置：从共享桶偏移开始计算，每个共享桶占用WRERT_SHARED_BUCKETS_PER_SEGMENT个字节
     const uint8_t sharedBucketOffset = segmentNode->sharedBucketOffset == 0 ? 0 : segmentNode->sharedBucketOffset + 1;
     const uint8_t localDepth = segmentNode->localDepth;
-
-    // 计算共享桶索引：根据主桶索引和共享桶偏移计算
     const uint64_t sharedBucketIndex = WRERT_GET_SHARED_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
-    // 共享桶在段中的位置
     const uint64_t sharedBucketPosition = sharedBucketOffset + (sharedBucketIndex & WRERT_SHARED_BUCKETS_PER_SEGMENT_MASK);
-    // 获取共享桶指针
     WRERTBucket* sharedBucket = &segment->buckets[sharedBucketPosition];
-
-    // printf("segmentIndex: %lu, sharedBucketOffset: %lu, sharedBucketIndex: %lu, sharedBucketPosition: %lu, mainBucketIndex: %lu, mainBucketPosition: %lu\n",
-    //        segmentIndex, sharedBucketOffset, sharedBucketIndex, sharedBucketPosition, mainBucketIndex, mainBucketPosition);
 
     const int8_t sharedBucketVersion = localDepth - 1;
     WRERTSlotKeyValue* slot;
 
-    // 遍历共享桶查找匹配项
-    // for (uint64_t shareSlotIndex = 0; shareSlotIndex < WRERT_SLOTS_PER_BUCKET; ++shareSlotIndex) {
-    //     // 获取共享桶 slot 指针
-    //     slot = &sharedBucket->counters[shareSlotIndex];
-    //     // printf("search 共享桶插槽 %lu slot->subKeyFields.subKey: 0x%08llx, subKey: 0x%08llx,  value: %lu, nodeFlag: %lu, validFlag: %lu, migVersion: %d, sharedBucketVersion: %d, localDepth: %d, segmentIndex: %lu\n",
-    //     //        shareSlotIndex, slot->subKeyFields.subKey, subKey, slot->valueFields.value, slot->subKeyFields.nodeFlag, slot->subKeyFields.validFlag, slot->subKeyFields.migVersion, sharedBucketVersion, localDepth, segmentIndex);
-    //     // if ((localDepth == WRERT_INIT_LOCAL_DEPTH || slot->subKeyFields.migVersion == sharedBucketVersion) && slot->subKeyFields.subKey == subKey) {
-    //     if (slot->subKeyFields.validFlag == 1 && slot->subKeyFields.migVersion == sharedBucketVersion && slot->subKeyFields.subKey == subKey) {
-    //         return slot;
-    //     }
-    // }
-
-    // 遍历共享桶查找匹配项 - AVX-512加速
     const __m512i v_shared_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)(sharedBucketVersion & WRERT_MIGVERSION_BITS) << 32) | subKey);
     const __m512i v_offsets = _mm512_load_si512((__m512i*)offsets);
     const __m512i v_42bits_mask = _mm512_set1_epi64(WRERT_VALIDFLAG_MIGVERSION_SUBKEY_MASK);
     for (uint64_t shareSlotIndex = 0; shareSlotIndex < WRERT_SLOTS_PER_BUCKET; shareSlotIndex += 8) {
         __m512i keys = _mm512_mask_i64gather_epi64(
-          _mm512_setzero_si512(),                         // 初始值
-          summary_mask,                                   // 有效掩码
-          v_offsets,                                      // 偏移量向量
-          (void*)&sharedBucket->counters[shareSlotIndex], // 基地址
-          1                                               // 比例因子
-        );
+          _mm512_setzero_si512(),
+          summary_mask,
+          v_offsets,
+          (void*)&sharedBucket->counters[shareSlotIndex],
+          1);
         __m512i v_keys = _mm512_and_si512(keys, v_42bits_mask);
-        // 打印v_keys的值
-        // uint64_t v_keys1_array[8];
-        // uint64_t v_keys2_array[8];
-        // _mm512_storeu_si512((__m512i*)v_keys1_array, keys);
-        // _mm512_storeu_si512((__m512i*)v_keys2_array, v_keys);
-        // for (int i = 0; i < 8; i++) {
-        //     printf("共享桶v_keys[%d] = 0x%016lx, 0x%016lx\n", i, v_keys1_array[i], v_keys2_array[i]);
-        // }
         __mmask8 match_mask = _mm512_cmpeq_epi64_mask(v_keys, v_shared_target);
         if (match_mask) {
-            int j = __builtin_ctz(match_mask); // 找到最低位的 1
-            // printf("search 共享桶插槽 %lu slot->subKeyFields.subKey: 0x%08llx, value: %lu, nodeFlag: %lu, migVersion: %d, sharedBucketVersion: %d, localDepth: %lu, segmentIndex: %lu\n",
-            //        shareSlotIndex + j, sharedBucket->counters[shareSlotIndex + j].subKeyFields.subKey, sharedBucket->counters[shareSlotIndex + j].valueFields.value, sharedBucket->counters[shareSlotIndex + j].subKeyFields.nodeFlag, sharedBucket->counters[shareSlotIndex + j].subKeyFields.migVersion, sharedBucketVersion, localDepth, segmentIndex);
+            int j = __builtin_ctz(match_mask);
             return &sharedBucket->counters[shareSlotIndex + j];
         }
     }
 
-    // const __m512i shuffle_subkeys = _mm512_setr_epi64(0, 2, 4, 6, 0, 0, 0, 0);
-    // for (uint64_t shareSlotIndex = 0; shareSlotIndex < WRERT_SLOTS_PER_BUCKET; shareSlotIndex += 4) {
-    //     // 1. 【连续加载】直接读取 64 字节（4个subKey + 4个value），完全没有 Gather 的延迟！
-    //     __m512i raw_data = _mm512_loadu_si512((const __m512i*)&sharedBucket->counters[shareSlotIndex]);
-    //     // 2. 【寄存器内洗牌】利用 vpermq 指令，只把 4 个 subKey 压缩到寄存器的低 256 位
-    //     __m512i keys = _mm512_permutexvar_epi64(shuffle_subkeys, raw_data);
-    //     // 3. 【位运算与并行比较】
-    //     __m512i v_keys = _mm512_and_si512(keys, v_42bits_mask);
-    //     // 因为我们只提取了 4 个有效 key，所以比较时只需要看低 4 位的掩码 (0x0F)
-    //     __mmask8 match_mask = _mm512_cmpeq_epi64_mask(v_keys, v_shared_target) & 0x0F;
-    //     if (match_mask) {
-    //         int j = __builtin_ctz(match_mask); // 找到命中的位置 (0-3)
-    //         return &sharedBucket->counters[shareSlotIndex + j];
-    //     }
-    // }
-
-    // 计算主桶索引：使用子键的高位索引主桶
     const uint64_t mainBucketIndex = WRERT_GET_MAIN_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
-    // 主桶在段中的位置
     const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
-    // 获取主桶指针
     WRERTBucket* mainBucket = &segment->buckets[mainBucketPosition];
-
-    // 遍历主桶查找匹配 slot
-    // for (uint64_t mainSlotIndex = 0; mainSlotIndex < WRERT_SLOTS_PER_BUCKET; ++mainSlotIndex) {
-    //     // 获取主桶 slot 指针
-    //     slot = &mainBucket->counters[mainSlotIndex];
-    //     // printf("search 主桶插槽 %lu slot->subKeyFields.subKey: 0x%08llx, nodeFlag: %lu, value: %lu, validFlag: %lu, migVersion: %lu, _segmentIndex: %lu, segmentIndex: %lu\n",
-    //     //        mainSlotIndex, slot->subKeyFields.subKey, slot->subKeyFields.nodeFlag, slot->valueFields.value, slot->subKeyFields.validFlag, slot->subKeyFields.migVersion, _segmentIndex, segmentIndex);
-    //     // if (isInvalidMainSlot(slot, localDepth)) {
-    //     if (slot->subKeyFields.migVersion == localDepth && slot->subKeyFields.subKey == subKey) {
-    //         return slot;
-    //     }
-    // }
 
     const __m512i v_main_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)localDepth << 32) | subKey);
     for (uint64_t mainSlotIndex = 0; mainSlotIndex < WRERT_SLOTS_PER_BUCKET; mainSlotIndex += 8) {
-        // 3. 使用 gather 指令加载 8 个 slot 的数据
         __m512i keys = _mm512_mask_i64gather_epi64(
-          _mm512_setzero_si512(),                      // 初始值
-          summary_mask,                                // 有效掩码
-          v_offsets,                                   // 偏移量向量
-          (void*)&mainBucket->counters[mainSlotIndex], // 基地址
-          1                                            // 比例因子
-        );
+          _mm512_setzero_si512(),
+          summary_mask,
+          v_offsets,
+          (void*)&mainBucket->counters[mainSlotIndex],
+          1);
         __m512i v_keys = _mm512_and_si512(keys, v_42bits_mask);
-        // uint64_t v_keys1_array[8];
-        // uint64_t v_keys2_array[8];
-        // _mm512_storeu_si512((__m512i*)v_keys1_array, keys);
-        // _mm512_storeu_si512((__m512i*)v_keys2_array, v_keys);
-        // for (int i = 0; i < 8; i++) {
-        //     printf("主桶v_keys[%d] = 0x%016lx, 0x%016lx\n", i, v_keys1_array[i], v_keys2_array[i]);
-        // }
         __mmask8 match_mask = _mm512_cmpeq_epi64_mask(v_keys, v_main_target);
         if (match_mask) {
-            int j = __builtin_ctz(match_mask); // 找到最低位的 1
-            // printf("search 主桶插槽 %lu slot->subKeyFields.subKey: 0x%08llx, value: %lu, nodeFlag: %lu, validFlag: %lu, migVersion: %ld, localDepth: %d, segmentIndex: %lu\n",
-            //        mainSlotIndex + j, mainBucket->counters[mainSlotIndex + j].subKeyFields.subKey, mainBucket->counters[mainSlotIndex + j].valueFields.value, mainBucket->counters[mainSlotIndex + j].subKeyFields.nodeFlag, mainBucket->counters[mainSlotIndex + j].subKeyFields.migVersion, localDepth, segmentIndex);
+            int j = __builtin_ctz(match_mask);
             return &mainBucket->counters[mainSlotIndex + j];
         }
     }
 
-    // for (uint64_t mainSlotIndex = 0; mainSlotIndex < WRERT_SLOTS_PER_BUCKET; mainSlotIndex += 4) {
-    //     // 1. 【连续加载】直接读取 64 字节（4个subKey + 4个value），完全没有 Gather 的延迟！
-    //     __m512i raw_data = _mm512_loadu_si512((const __m512i*)&mainBucket->counters[mainSlotIndex]);
-    //     // 2. 【寄存器内洗牌】利用 vpermq 指令，只把 4 个 subKey 压缩到寄存器的低 256 位
-    //     __m512i keys = _mm512_permutexvar_epi64(shuffle_subkeys, raw_data);
-    //     // 3. 【位运算与并行比较】
-    //     __m512i v_keys = _mm512_and_si512(keys, v_42bits_mask);
-    //     // 因为我们只提取了 4 个有效 key，所以比较时只需要看低 4 位的掩码 (0x0F)
-    //     __mmask8 match_mask = _mm512_cmpeq_epi64_mask(v_keys, v_main_target) & 0x0F;
-    //     if (match_mask) {
-    //         int j = __builtin_ctz(match_mask); // 找到命中的位置 (0-3)
-    //         return &mainBucket->counters[mainSlotIndex + j];
-    //     }
-    // }
-
-    // 主桶也没有找到，slot 为 nullptr
     return nullptr;
 }
 
@@ -1013,12 +902,6 @@ WRERTNode::~WRERTNode() {
 }
 
 void WRERTSegment::initialize() {
-    // 初始化段内的所有桶
-    // for (int i = 0; i < WRERT_SEGMENT_SIZE; i++) {
-    //     // 使用placement new调用每个桶的构造函数
-    //     new (&buckets[i]) WRERTBucket();
-    // }
-
     memset(buckets, 0, sizeof(WRERTBucket) * WRERT_SEGMENT_SIZE);
 }
 
@@ -1067,7 +950,6 @@ void WRERTNode::initialize(unsigned char nodeHeaderDepth, unsigned char globalDe
     segmentNode->segmentPtr = reinterpret_cast<uint64_t>(NewWRERTSegment()); // 分配新段并设置指针
 }
 
-// ==================== 创建函数实现 ====================
 WRERTKeyValue* NewWRERTKeyValue(uint64_t key, uint64_t value) {
     // 分配 WRERTKeyValue 内存
     WRERTKeyValue* _newKV = static_cast<WRERTKeyValue*>(concurrency_fast_alloc(sizeof(WRERTKeyValue)));
@@ -1084,15 +966,7 @@ WRERTBucket* NewWRERTBucket() {
 }
 
 WRERTSegment* NewWRERTSegment() {
-    // 分配 WRERTSegment 内存
     WRERTSegment* _newSegment = static_cast<WRERTSegment*>(concurrency_fast_alloc(sizeof(WRERTSegment)));
-    // printf("sizeof(WRERTSegment): %llu\n", sizeof(WRERTSegment));
-
-    // 初始化段
-    // _newSegment->initialize();
-
-    // 刷新内存，确保写入可见
-    // clflush((char*)_newSegment, sizeof(WRERTSegment));
 
     return _newSegment;
 }
@@ -1100,11 +974,7 @@ WRERTSegment* NewWRERTSegment() {
 WRERTNode* NewWRERTNode(unsigned char nodeHeaderDepth, unsigned char globalDepth) {
     WRERTNode* _newNode = static_cast<WRERTNode*>(concurrency_fast_alloc(
       sizeof(WRERTNode) + sizeof(WRERTSegmentNode) * (1 << globalDepth)));
-
     _newNode->initialize(nodeHeaderDepth, globalDepth);
-
-    // 刷新内存，确保写入可见
-    // clflush((char*)_newNode, sizeof(WRERTNode) + sizeof(WRERTSegmentNode) * (1 << globalDepth));
 
     return _newNode;
 }

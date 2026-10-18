@@ -87,7 +87,7 @@ constexpr uint8_t WRERT_INIT_GLOBAL_DEPTH = 0;                                  
 constexpr uint8_t WRERT_INIT_LOCAL_DEPTH = 0;                                                 // 初始段局部深度
 
 // 段、桶、槽配置（64个主桶+32个共享桶=96个桶，每个桶16个slot）/（32个主桶+16个共享桶=48个桶，每个桶16个slot）
-constexpr uint8_t WRERT_MAIN_BUCKETS_PER_SEGMENT = 4;                                                     // 每个段的主桶数量：32（4、8、16、32、64、128）
+constexpr uint8_t WRERT_MAIN_BUCKETS_PER_SEGMENT = 32;                                                    // 每个段的主桶数量：32（4、8、16、32、64、128）
 constexpr uint8_t WRERT_MAIN_BUCKETS_PER_SEGMENT_MASK = WRERT_MAIN_BUCKETS_PER_SEGMENT - 1;               // 主桶数掩码
 constexpr uint8_t WRERT_MAIN_BUCKETS_MAX_BITS = __builtin_ctz(WRERT_MAIN_BUCKETS_PER_SEGMENT);            // 每个段的主桶索引位数：6位
 constexpr uint8_t WRERT_SHARED_BUCKETS_PER_SEGMENT = WRERT_MAIN_BUCKETS_PER_SEGMENT / 2;                  // 每个段的共享桶数量：32个（每2个主桶共享1个共享桶）
@@ -131,10 +131,6 @@ enum class OperationResults : int {
 
 // 键值对类：存储全局键和值
 // 大小: 16字节; 内存布局:
-// ┌─────────┬───────────┐
-// │   key   │   value   │
-// │  8字节  │   8字节   │
-// └─────────┴───────────┘
 class WRERTKeyValue {
 public:
     uint64_t key = 0;
@@ -160,10 +156,6 @@ public:
 
 // 桶内键值对类：用于桶内存储子键和值
 // 大小: 16字节; 内存布局:
-// ┌─────────┬───────────┐
-// │ subkey  │   value   │
-// │  8字节  │   8字节   │
-// └─────────┴───────────┘
 class WRERTSlotKeyValue {
 public:
     // subKey字段的位域定义
@@ -219,7 +211,7 @@ inline bool isInvalidMainSlot(const WRERTSlotKeyValue* slot, const uint8_t versi
 }
 
 // 桶类：存储固定数量的键值对，支持范围查询优化
-// 大小: 272字节; 内存布局:
+// 大小: 256字节; 内存布局:
 // ┌─────────────────────────────────────────────────────────┐
 // │ counters[0-15]: {subkey, value} (16×16字节=256字节)     │
 // ├─────────────────────────────────────────────────────────┤
@@ -259,57 +251,18 @@ public:
 
 // 段节点类：包含桶指针、局部深度和锁状态信息
 // 大小: 8字节; 内存布局:
-// ┌─────────────────────────────────────────────────────────┐
-// │ bucketPtr (48位) + localDepth (8位) + sharedBucketOffset│
-// │ (6位) + lockState (2位) + sharedSegment指针 (8字节)     │
-// └─────────────────────────────────────────────────────────┘
 class WRERTSegmentNode {
 public:
     uint8_t localDepth : 8;         // 局部深度（8位）
     uint8_t sharedBucketOffset : 7; // 第一个共享桶的偏移（6位，-1到63）
-    uint8_t lockState : 1;          // 锁状态（2位：简单高效控制）
-    uint64_t segmentPtr : 48;       // 段指针（48位）
-
-    enum class LockState : uint8_t {
-        UNLOCKED = 0,    // 无锁状态
-        READ_LOCKED = 1, // 读锁定（允许多个读）
-        WRITE_LOCKED = 2 // 写锁定（独占）
-    };
+    uint8_t lockState : 1;
+    uint64_t segmentPtr : 48; // 段指针（48位）
 
 public:
     WRERTSegmentNode();
     ~WRERTSegmentNode();
-
-    // 简单高效的锁接口
-    bool tryReadLock();
-    bool tryWriteLock();
-    void readUnlock();
-    void writeUnlock();
-
-    // 快速路径检查
-    bool isReadLocked() const {
-        return lockState == static_cast<uint8_t>(LockState::READ_LOCKED);
-    }
-
-    bool isWriteLocked() const {
-        return lockState == static_cast<uint8_t>(LockState::WRITE_LOCKED);
-    }
-
-    bool isUnlocked() const {
-        return lockState == static_cast<uint8_t>(LockState::UNLOCKED);
-    }
-
-private:
-    // 内部原子操作
-    bool casLockState(uint8_t expected, uint8_t desired);
 };
 
-// 头部信息类：存储节点的前缀信息
-// 大小: 8字节; 内存布局:
-// ┌─────────┬─────────┬──────────────┐
-// │ nodeDepth│prefixLen│ prefixArray[6]│
-// │   1B    │   1B    │      6B      │
-// └─────────┴─────────┴──────────────┘
 class WRERTHeader {
 public:
     unsigned char nodeHeaderDepth;
@@ -350,10 +303,6 @@ public:
 
     // Directory结构：包含全局段指针、深度和标志位
     // 大小: 8字节; 内存布局:
-    // ┌─────────────────────────────────────────────────┐
-    // │ globalSegmentPtr (48bit) + globalDepth (8bit)   │
-    // │ nodeType (2bit) + isLocked (1bit) + reserved (5bit) │
-    // └─────────────────────────────────────────────────┘
     struct WRERTDirectory {
         uint8_t globalDepth : 8;
         // uint8_t nodeType : 2;

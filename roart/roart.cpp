@@ -1,7 +1,3 @@
-//
-// Created by 王柯 on 5/25/21.
-//
-
 #include "roart.h"
 
 #ifdef ROART_PROFILE_TIME
@@ -14,10 +10,10 @@ timeval start_time, end_time;
 uint64_t _random, _sequential;
 #endif
 
-std::vector<uint64_t> roart_range_segment_scan_latency_ = {};     // 范围查询每个段扫描延迟
-std::vector<uint64_t> roart_per_insert_node_split_latency_ = {};  // 每次插入时更新节点的延迟
-std::vector<uint64_t> roart_per_insert_node_grow_latency_ = {};   // 每次插入时扩展节点的延迟
-std::vector<uint64_t> roart_per_insert_node_update_latency_ = {}; // 每次插入时更新节点的延迟
+std::vector<uint64_t> roart_range_segment_scan_latency_ = {};
+std::vector<uint64_t> roart_per_insert_node_split_latency_ = {};
+std::vector<uint64_t> roart_per_insert_node_grow_latency_ = {};
+std::vector<uint64_t> roart_per_insert_node_update_latency_ = {};
 
 inline void mfence(void) {
     asm volatile("mfence" ::: "memory");
@@ -141,7 +137,6 @@ restart:
 
 #else
 uint64_t ROART::get(uint64_t key) {
-    // 将64位整型键转换为字节数组（大端序）
     // enter a new epoch
     uint8_t fkey[8];
     for (int i = 0; i < 8; ++i) {
@@ -149,7 +144,6 @@ uint64_t ROART::get(uint64_t key) {
     }
     uint64_t key_len = 8;
 
-    // 从根节点开始搜索键
     //    ROART_KEY *k = new ROART_KEY(key, sizeof(uint64_t), 0);
     N* node = root;
 
@@ -164,40 +158,32 @@ uint64_t ROART::get(uint64_t key) {
 #ifdef CHECK_COUNT
         int pre = level;
 #endif
-        // 检查当前节点的前缀是否与键匹配
-        // mycheckPrefix会根据匹配情况增加level值
         //        switch (checkPrefix(node, k, level)) { // increases level
         switch (mycheckPrefix(node, key_len, fkey, level)) { // increases level
-            case CheckPrefixResult::NoMatch:                 // 前缀不匹配
+            case CheckPrefixResult::NoMatch:
                 return 0;
-            case CheckPrefixResult::OptimisticMatch: // 乐观匹配（可能匹配
-                optimisticPrefixMatch = true;        // 设置乐观匹配标志
+            case CheckPrefixResult::OptimisticMatch:
+                optimisticPrefixMatch = true;
                 // fallthrough
-            case CheckPrefixResult::Match: { // 前缀匹配
-                if (key_len <= level) {      // 如果键长度不超过当前层级
-
+            case CheckPrefixResult::Match: {
+                if (key_len <= level) {
                     return 0;
                 }
 
-                // 获取下一级节点
                 node = N::getChild(fkey[level], node);
 
 #ifdef CHECK_COUNT
                 checkcount += std::min(4, (int)level - pre);
 #endif
-                // 如果子节点为空，说明键不存在
                 if (node == nullptr) {
                     return 0;
                 }
-                // 如果当前节点是叶子节点
                 if (N::isLeaf(node)) {
                     ROART_Leaf* ret = N::getLeaf(node);
-                    // 如果当前层级小于键长度减1 或者 使用了乐观匹配
                     if (level < key_len - 1 || optimisticPrefixMatch) {
 #ifdef CHECK_COUNT
                         checkcount += k->getKeyLen();
 #endif
-                        // 检查叶子节点中的键是否完全匹配
                         //                        if (ret->checkKey(k)) {
                         if (ret->mycheckKey(key_len, fkey)) {
                             return *((uint64_t*)ret->value);
@@ -530,8 +516,6 @@ restart:
 bool ROART::lookupRange(const ROART_KEY* start, const ROART_KEY* end, ROART_KEY* continueKey,
                         ROART_Leaf* result[], std::size_t resultSize,
                         std::size_t& resultsFound) const {
-    // printf("ddad\n");
-    // 检查起始键是否小于结束键
     if (!N::key_key_lt(start, end)) {
         resultsFound = 0;
         return false;
@@ -551,22 +535,18 @@ bool ROART::lookupRange(const ROART_KEY* start, const ROART_KEY* end, ROART_KEY*
 
     ROART_Leaf* toContinue = nullptr;
     bool restart;
-    // 递归复制函数：遍历节点并将叶子节点添加到结果中
     std::function<void(N*)> copy = [&result, &resultSize, &resultsFound,
                                     &toContinue, &copy, &scan_value,
                                     start](N* node) {
         if (N::isLeaf(node)) {
-            // 如果达到结果缓冲区大小限制
             if (resultsFound == resultSize) {
                 toContinue = N::getLeaf(node);
                 return;
             }
-            // 将叶子节点添加到结果中
             ROART_Leaf* leaf = N::getLeaf(node);
             result[resultsFound] = N::getLeaf(node);
             resultsFound++;
         } else {
-            // 如果是内部节点，获取所有子节点并递归处理
             std::tuple<uint8_t, N*> children[256];
             uint32_t childrenCount = 0;
             N::getChildren(node, 0u, 255u, children, childrenCount);
@@ -579,7 +559,6 @@ bool ROART::lookupRange(const ROART_KEY* start, const ROART_KEY* end, ROART_KEY*
             }
         }
     };
-    // 查找起始位置的lambda函数
     std::function<void(N*, uint32_t)> findStart =
       [&copy, &start, &findStart, &toContinue, &restart,
        this](N* node, uint32_t level) {
@@ -594,16 +573,14 @@ bool ROART::lookupRange(const ROART_KEY* start, const ROART_KEY* end, ROART_KEY*
           PCCompareResults prefixResult;
           prefixResult = checkPrefixCompare(node, start, level);
           switch (prefixResult) {
-              case PCCompareResults::Bigger: // 节点键大于起始键
+              case PCCompareResults::Bigger:
                   copy(node);
                   break;
               case PCCompareResults::Equal: {
-                  // 获取起始键在当前层级的字节值
                   uint8_t startLevel = (start->getKeyLen() > level) ? start->fkey[level] : (uint8_t)0;
                   //                uint8_t startLevel = (start->key >> ((start->key_len - level - 1) * 8)) & 255;
                   std::tuple<uint8_t, N*> children[256];
                   uint32_t childrenCount = 0;
-                  // 获取从起始键值到255的所有子节点
                   N::getChildren(node, startLevel, 255, children, childrenCount);
 
                   for (uint32_t i = 0; i < childrenCount; ++i) {
@@ -627,7 +604,6 @@ bool ROART::lookupRange(const ROART_KEY* start, const ROART_KEY* end, ROART_KEY*
                   break;
           }
       };
-    // 查找结束位置的lambda函数
     std::function<void(N*, uint32_t)> findEnd =
       [&copy, &end, &toContinue, &restart, &findEnd, this](N* node,
                                                            uint32_t level) {
@@ -683,7 +659,6 @@ restart:
     N* node = nullptr;
     N* nextNode = root;
 
-    // 如果没有下一个节点或需要继续上次扫描，则退出循环
     while (true) {
         if (!(node = nextNode) || toContinue)
             break;
@@ -750,7 +725,6 @@ restart:
         break;
     }
 
-    // 如果设置了继续点（结果缓冲区满了）
     if (toContinue != nullptr) {
         ROART_KEY* newkey = new ROART_KEY();
 #ifdef KEY_INLINE
@@ -779,22 +753,18 @@ vector<ROART_KEY> ROART::scan(uint64_t min, uint64_t max, uint64_t size) {
     ROART_Leaf** result = new ROART_Leaf*[res_len];
     lookupRange(start, end, continue_key, result, res_len, res_cnt);
 
-    // 将查询结果添加到返回向量中
     // for (size_t i = 0; i < res_cnt; i++) {
-    //     // 从ROART_Leaf中提取键
     //     ROART_Leaf* leaf = result[i];
     //     uint8_t* key_data = leaf->fkey;
 
-    //     // 将字节数组转换回uint64_t键
     //     uint64_t key = 0;
     //     for (int j = 0; j < 8; j++) {
     //         key = (key << 8) | key_data[j];
     //     }
 
-    //     // 创建ROART_KEY对象并添加到结果向量
     //     ROART_KEY roart_key(key, sizeof(uint64_t), *(uint64_t*)(leaf->GetValue()));
     //     res.push_back(roart_key);
-    //     // printf("  |-> ROART 扫描 Key %llu, Value = %llu\n", res[i].key, res[i].value);
+    //     // printf("  |-> ROART scan Key %llu, Value = %llu\n", res[i].key, res[i].value);
     // }
 
     // printf("vector<ROART_KEY> res size: %lu; res_cnt: %lu; res_len: %lu \n", res.size(), res_cnt, res_len);
@@ -834,7 +804,6 @@ restart:
 
         uint8_t nonMatchingKey;
         Prefix remainingPrefix;
-        // 检查当前节点的前缀与键的匹配情况
         switch (
           //                checkPrefixPessimistic(node, k, nextLevel, nonMatchingKey,
           //                                       remainingPrefix)) { // increases nextLevel
@@ -849,7 +818,6 @@ restart:
                 if (needRestart)
                     goto restart;
 
-                // 1) 创建新节点作为当前节点的父节点，设置公共前缀和层级
                 // 1) Create new node which will be parent of node, Set common
                 // prefix, level to this node
                 Prefix prefi = node->getPrefi();
@@ -865,7 +833,6 @@ restart:
                 roart_memory_usage += get_node_size(NTypes::N4);
 #endif
 
-                // 2) 添加当前节点和新叶子节点作为子节点
                 // 2)  add node and (tid, *k) as children
 
                 //                auto *newLeaf = allocLeaf(k);
@@ -888,7 +855,6 @@ restart:
                 // persist the new node
                 clflush((char*)newNode, sizeof(N4));
 
-                // 3) 锁定父节点，更新父节点指向新节点，解锁
                 // 3) lockVersionOrRestart, update parentNode to point to the
                 // new node, unlock
                 parentNode->writeLockOrRestart(needRestart);
@@ -900,7 +866,6 @@ restart:
                 N::change(parentNode, parentKey, newNode);
                 parentNode->writeUnlock();
 
-                // 4) 更新原节点的前缀并解锁
                 // 4) update prefix of node, unlock
                 node->setPrefix(
                   remainingPrefix.prefix,
@@ -924,18 +889,16 @@ restart:
         // TODO: maybe one string is substring of another, so it fkey[level]
         // will be 0 solve problem of substring
 
-        // 更新当前层级为下一个层级
         level = nextLevel;
         nodeKey = fkey[level];
         //        nodeKey = k->fkey[level];
 
         nextNode = N::getChild(nodeKey, node);
-        // 如果子节点不存在，说明可以在当前位置插入新叶子节点
         if (nextNode == nullptr) {
-            node->lockVersionOrRestart(v, needRestart); // 锁定当前节点以确保线程安全
+            node->lockVersionOrRestart(v, needRestart);
             if (needRestart)
-                goto restart; // 如果需要重启，跳转到restart标签
-                              //            ROART_Leaf *newLeaf = allocLeaf(k);
+                goto restart;
+            //            ROART_Leaf *newLeaf = allocLeaf(k);
 #ifdef ROART_PROFILE_TIME
             gettimeofday(&start_time, NULL);
 #endif
@@ -1002,7 +965,7 @@ restart:
             }
         }
 #else
-        if (N::isLeaf(nextNode)) { // 如果下一个节点是叶子节点
+        if (N::isLeaf(nextNode)) {
             node->lockVersionOrRestart(v, needRestart);
             if (needRestart)
                 goto restart;
@@ -1026,12 +989,10 @@ restart:
             //                       k->fkey[level + prefixLength]) {
             //                prefixLength++;
             //            }
-            // 否则使用fkey数组进行比较
             while (level + prefixLength < std::min(key_len, leaf->getKeyLen()) && leaf->fkey[level + prefixLength] == fkey[level + prefixLength]) {
                 prefixLength++;
             }
 #endif
-            // 情况1：键完全相同（重复键）
             // equal
             if (key_len == leaf->getKeyLen() && level + prefixLength == key_len) {
                 // duplicate leaf
@@ -1059,7 +1020,6 @@ restart:
 #ifdef ROART_PROFILE_TIME
             gettimeofday(&start_time, NULL);
 #endif
-            // 否则使用快速分配器创建N4节点
             auto n4 = new (concurrency_fast_alloc(get_node_size(NTypes::N4)))
               N4(level + prefixLength, &fkey[level],
                  prefixLength); // not persist

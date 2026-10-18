@@ -41,6 +41,7 @@ rm -rf /pmem0/wrert/*
 # rm -rf ./Log/wort/*base*.txt
 # rm -rf ./Log/woart/*base*.txt
 # rm -rf ./Log/roart/*base*.txt
+# rm -rf ./Log/wrert/*base*.txt
 
 # rm -rf ./Log/*_test_log.txt
 rm -rf ./Log/res.txt
@@ -70,7 +71,7 @@ for idx in "${indices[@]}"; do
     for type in "${test_types[@]}"; do
         for i in {1..1}; do
             echo ">>> $idx $type 1 第 $i 次基准性能读写测试 <<<" >> ./Log/"$idx"/"$idx"_"$type"_base_sparse_res.txt 2>&1
-            ./nvmkv 1000000 /pmem0/wrert/ "$idx" "$type" >> ./Log/"$idx"/"$idx"_"$type"_base_sparse_res.txt 2>&1
+            ./nvmkv 100000000 /pmem0/wrert/ "$idx" "$type" >> ./Log/"$idx"/"$idx"_"$type"_base_sparse_res.txt 2>&1
             rm -rf /pmem0/wrert/*
             wait
             echo ">>> $idx $type 1 第 $i 次测试循环结束 <<<" >> ./Log/"$idx"/"$idx"_"$type"_base_sparse_res.txt 2>&1

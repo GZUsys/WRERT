@@ -504,7 +504,7 @@ OperationResults WRERT::insert(uint64_t key, uint64_t value, WRERTNode* node, in
                         // 更新前驱地址
                         beforeAddress = (uint64_t)slot;
 
-                        // printf("情况2.2.2: 还未到达键的末尾，指向下一个节点，继续递归\n");
+                        printf("情况2.2.2: 还未到达键的末尾，指向下一个节点，继续递归\n");
 
                     } else { // 否则，说明是键值对指针
                         // 提取 slot 指向的键值对指针，并更新键值对
@@ -531,7 +531,7 @@ OperationResults WRERT::insert(uint64_t key, uint64_t value, WRERTNode* node, in
                               &currentNode->directoryNode.header, 0, currentKeyPosition / WRERT_NODE_SUBKEY_MAX_BYTES);
                             //   &currentNode->directoryNode.header, 0, currentKeyPosition >> 2);
 
-                            // printf("情况2.2.4: 还未到达键的末尾，键不同，创建新节点\n");
+                            printf("情况2.2.4: 还未到达键的末尾，键不同，创建新节点\n");
 
                             // TUDO: 待优化
 
@@ -778,7 +778,7 @@ std::vector<WRERTKeyValue> WRERT::lookupRange(uint64_t leftKey, uint64_t rightKe
 
     return results;
 }
-
+static int num = 0;
 void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
                      std::vector<WRERTKeyValue>& results, int currentKeyPosition, uint64_t prefix) {
     // 初始化当前节点为传入节点或根节点
@@ -944,7 +944,7 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
                 // 遍历共享桶中的所有 slot
                 for (uint64_t j = 0; j < WRERT_SLOTS_PER_BUCKET; j++) {
                     const auto* slot = &segment->buckets[i].counters[j];
-                    // printf("情况3.1：遍历桶------  %llu 中的所有 slot %llu:  curSubKey = 0x%08llx, value = %llu, migVersion = %d, _migVersion = %d, validFlag = %llu, globalDepth = %llu, localDepth = %d, leftSegmentIndex = %d\n",
+                    // printf("情况3.1：遍历桶 %llu 中的所有 slot %llu:  curSubKey = 0x%08llx, value = %llu, migVersion = %d, _migVersion = %d, validFlag = %llu, globalDepth = %llu, localDepth = %d, leftSegmentIndex = %d\n",
                     //        i, j, slot->subKeyFields.subKey, slot->valueFields.value, slot->subKeyFields.migVersion, _migVersion, slot->subKeyFields.validFlag, globalDepth, localDepth, leftSegmentIndex);
                     // if (slot->subKeyFields.validFlag == 0 || (localDepth != WRERT_INIT_LOCAL_DEPTH && slot->subKeyFields.migVersion != _migVersion)) {
                     if (slot->subKeyFields.validFlag == 0 || slot->subKeyFields.migVersion != _migVersion) {
@@ -957,14 +957,16 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
                     if (WRERT_GET_SEGMENT_NUMBER(curSubKey, WRERT_NODE_SPAN, globalDepth) == leftSegmentIndex) {
                         // 获取当前值
                         uint64_t value = slot->valueFields.value;
-                        // printf("情况3.1：遍历桶  %llu 中的所有 slot %llu: subKeySegmentIndex = %llu, leftSegmentIndex = %llu, curSubKey = 0x%08llx, value = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu, _migVersion = %llu, globalDepth = %d, localDepth = %d\n",
-                        //        i, j, subKeySegmentIndex, leftSegmentIndex, curSubKey, value, slot->subKeyFields.migVersion, _migVersion, globalDepth, segmentNode->localDepth);
+                        // printf("情况3.1：遍历桶 %llu 中的所有 slot %llu: leftSegmentIndex = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu, _migVersion = %llu, globalDepth = %d, localDepth = %d\n",
+                        //        i, j, leftSegmentIndex, curSubKey, value, slot->subKeyFields.migVersion, _migVersion, globalDepth, segmentNode->localDepth);
                         // 如果当前 slot 存储的子键在查询范围中
                         // if ((leftSubKey == UINT64_MAX || curSubKey > leftSubKey)
                         //     && (rightSubKey == UINT64_MAX || curSubKey < rightSubKey)) {
                         if (curSubKey > leftSubKey && curSubKey < rightSubKey) {
                             if (currentKeyPosition == WRERT_KEY_MAX_BYTES) {     // 如果到键的末尾
                                 results.emplace_back(curSubKey + prefix, value); // 记录匹配的键值对
+                                // printf("有效kv - 情况3.1：遍历桶 %llu 中的所有 slot %llu: leftSegmentIndex = %llu, num = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu, _migVersion = %llu, globalDepth = %d, localDepth = %d\n",
+                                //        i, j, leftSegmentIndex, ++num, curSubKey, value, slot->subKeyFields.migVersion, _migVersion, globalDepth, segmentNode->localDepth);
                             } else {
                                 if (slot->subKeyFields.nodeFlag == 1) { // 如果 slot 指向的下一个节点，递归处理
                                     // auto temp_start_time = std::chrono::high_resolution_clock::now();
@@ -975,11 +977,16 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
 
                                 } else {                                       // 否则，说明是键值对指针
                                     results.push_back(*(WRERTKeyValue*)value); // 如果是键值对指针，记录匹配的键值对
+                                    // printf("有效kv - 情况3.1：遍历桶 %llu 中的所有 slot %llu: leftSegmentIndex = %llu, num = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu, _migVersion = %llu, globalDepth = %d, localDepth = %d\n",
+                                    //        i, j, leftSegmentIndex, ++num, curSubKey, (reinterpret_cast<WRERTKeyValue*>(slot->valueFields.value))->value, slot->subKeyFields.migVersion, _migVersion, globalDepth, segmentNode->localDepth);
                                 }
                             }
                         } else if (curSubKey == leftSubKey || curSubKey == rightSubKey) { // 如果当前子键等于查询范围的边界子键
                             if (currentKeyPosition == WRERT_KEY_MAX_BYTES) {              // 如果到键的末尾
                                 results.emplace_back(curSubKey + prefix, value);          // 记录匹配的键值对
+                                // printf("有效kv - 情况3.1：遍历桶 %llu 中的所有 slot %llu: leftSegmentIndex = %llu, num = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu, _migVersion = %llu, globalDepth = %d, localDepth = %d\n",
+                                //        i, j, leftSegmentIndex, ++num, curSubKey, value, slot->subKeyFields.migVersion, _migVersion, globalDepth, segmentNode->localDepth);
+
                             } else {
                                 if (slot->subKeyFields.nodeFlag == 1) { // 如果 slot 指向的下一个节点，递归处理
                                     // auto temp_start_time = std::chrono::high_resolution_clock::now();
@@ -990,6 +997,8 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
 
                                 } else {                                       // 否则，说明是键值对指针
                                     results.push_back(*(WRERTKeyValue*)value); // 如果是键值对指针，记录匹配的键值对
+                                    // printf("有效kv - 情况3.1：遍历桶 %llu 中的所有 slot %llu: leftSegmentIndex = %llu, num = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu, _migVersion = %llu, globalDepth = %d, localDepth = %d\n",
+                                    //        i, j, leftSegmentIndex, ++num, curSubKey, (reinterpret_cast<WRERTKeyValue*>(slot->valueFields.value))->value, slot->subKeyFields.migVersion, _migVersion, globalDepth, segmentNode->localDepth);
                                 }
                             }
                         }
@@ -1001,21 +1010,22 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
         };
         // auto start_time = std::chrono::high_resolution_clock::now();
         if (WRERT_SEGMENT_SIZE / 2 > leftSharedBucketPosition && WRERT_SEGMENT_SIZE / 2 < rightSharedBucketPosition) {
-            // printf("主桶区间1: [%llu, %llu], 共享桶区间: [%llu, %llu], 主桶区间2: [%llu, %llu]\n",
+            // printf("情况3.1：主桶区间1: [%llu, %llu], 共享桶区间: [%llu, %llu], 主桶区间2: [%llu, %llu]\n",
             //        0, rightMainBucketPosition_2, leftSharedBucketPosition, rightSharedBucketPosition, leftMainBucketPosition_1, WRERT_SEGMENT_SIZE - 1);
             // 情况2: 三段区间 [startMainBucketPosition, sharedBucketOffset-1], [sharedBucketOffset + sharedBucketIndexStart, sharedBucketOffset + sharedBucketIndexEnd - 1], [sharedBucketOffset + WRERT_SHARED_BUCKETS_PER_SEGMENT, endMainBucketPosition]
             bucketRangeIterate(0, rightMainBucketPosition_2, localDepth);
             bucketRangeIterate(leftSharedBucketPosition, rightSharedBucketPosition, localDepth - 1);
             bucketRangeIterate(leftMainBucketPosition_1, WRERT_SEGMENT_SIZE - 1, localDepth);
         } else {
-            // printf("主桶区间: [%llu, %llu], 共享桶区间: [%llu, %llu]\n", leftMainBucketPosition_1, rightMainBucketPosition_2, leftSharedBucketPosition, rightSharedBucketPosition);
+            // printf("情况3.1：主桶区间2: [%llu, %llu], 共享桶区间: [%llu, %llu]\n",
+            //        leftMainBucketPosition_1, rightMainBucketPosition_2, leftSharedBucketPosition, rightSharedBucketPosition);
             // 情况1: 两段区间 [startMainBucketPosition, endMainBucketPosition], [sharedBucketOffset + sharedBucketIndexStart, sharedBucketOffset + sharedBucketIndexEnd - 1]
             bucketRangeIterate(leftSharedBucketPosition, rightSharedBucketPosition, localDepth - 1);
             bucketRangeIterate(leftMainBucketPosition_1, rightMainBucketPosition_2, localDepth);
         }
         // auto end_time = std::chrono::high_resolution_clock::now();
         // range_segment_scan_latency_.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count() - temp_total_time);
-
+        // printf("情况3.1：=============\n");
         return;
     }
 
@@ -1102,6 +1112,9 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
                     // 遍历桶中的所有 slot
                     for (uint64_t j = 0; j < WRERT_SLOTS_PER_BUCKET; j++) {
                         const auto* slot = &segment->buckets[i].counters[j];
+                        // printf("情况3.2：遍历桶 %llu 中的所有 slot %llu:  curSubKey = 0x%08llx, value = %llu, migVersion = %d, _migVersion = %d, validFlag = %llu, globalDepth = %llu, localDepth = %d, leftSegmentIndex = %d\n",
+                        //        i, j, slot->subKeyFields.subKey, slot->valueFields.value, slot->subKeyFields.migVersion, _migVersion, slot->subKeyFields.validFlag, globalDepth, localDepth, leftSegmentIndex);
+
                         // if (slot->subKeyFields.validFlag == 0 || (localDepth != WRERT_INIT_LOCAL_DEPTH && slot->subKeyFields.migVersion != _migVersion)) {
                         if (slot->subKeyFields.validFlag == 0 || slot->subKeyFields.migVersion != _migVersion) {
                             break;
@@ -1114,13 +1127,16 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
                         if (subKeySegmentIndex >= _segmentIndex && subKeySegmentIndex <= sameSegmentIndex) {
                             // 获取当前值
                             uint64_t value = slot->valueFields.value;
-                            // printf("情况3.2：遍历桶中的所有slot: segmentIndex = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu\n", _segmentIndex, curSubKey, value, bucket->counters[j].subKeyFields.migVersion);
+                            // printf("情况3.2：遍历桶中的所有slot: segmentIndex = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu\n",
+                            //        _segmentIndex, curSubKey, value, slot->subKeyFields.migVersion);
                             // 如果当前 slot 存储的子键在查询范围中
                             // if ((leftSubKey == UINT64_MAX || curSubKey > leftSubKey)
                             //     && (rightSubKey == UINT64_MAX || curSubKey < rightSubKey)) {
                             if (curSubKey > leftSubKey && curSubKey < rightSubKey) {
                                 if (currentKeyPosition == WRERT_KEY_MAX_BYTES) {     // 如果到键的末尾
                                     results.emplace_back(curSubKey + prefix, value); // 记录匹配的键值对
+                                    // printf("有效kv - 情况3.2：遍历桶 %llu 中的所有 slot %llu: leftSegmentIndex = %llu, num = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu, _migVersion = %llu, globalDepth = %d, localDepth = %d\n",
+                                    //        i, j, leftSegmentIndex, ++num, curSubKey, value, slot->subKeyFields.migVersion, _migVersion, globalDepth, segmentNode->localDepth);
                                 } else {
                                     if (slot->subKeyFields.nodeFlag == 1) { // 如果 slot 指向的下一个节点，递归处理
                                         // auto temp_start_time = std::chrono::high_resolution_clock::now();
@@ -1131,11 +1147,15 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
 
                                     } else {                                       // 否则，说明是键值对指针
                                         results.push_back(*(WRERTKeyValue*)value); // 如果是键值对指针，记录匹配的键值对
+                                        // printf("有效kv - 情况3.2：遍历桶 %llu 中的所有 slot %llu: leftSegmentIndex = %llu, num = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu, _migVersion = %llu, globalDepth = %d, localDepth = %d\n",
+                                        //        i, j, leftSegmentIndex, ++num, curSubKey, (reinterpret_cast<WRERTKeyValue*>(slot->valueFields.value))->value, slot->subKeyFields.migVersion, _migVersion, globalDepth, segmentNode->localDepth);
                                     }
                                 }
                             } else if (curSubKey == leftSubKey || curSubKey == rightSubKey) { // 如果当前子键等于查询范围的边界子键
                                 if (currentKeyPosition == WRERT_KEY_MAX_BYTES) {              // 如果到键的末尾
                                     results.emplace_back(curSubKey + prefix, value);          // 记录匹配的键值对
+                                    // printf("有效kv - 情况3.2：遍历桶 %llu 中的所有 slot %llu: leftSegmentIndex = %llu, num = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu, _migVersion = %llu, globalDepth = %d, localDepth = %d\n",
+                                    //        i, j, leftSegmentIndex, ++num, curSubKey, value, slot->subKeyFields.migVersion, _migVersion, globalDepth, segmentNode->localDepth);
                                 } else {
                                     if (slot->subKeyFields.nodeFlag == 1) { // 如果 slot 指向的下一个节点，递归处理
                                         // auto temp_start_time = std::chrono::high_resolution_clock::now();
@@ -1146,6 +1166,8 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
 
                                     } else {                                       // 否则，说明是键值对指针
                                         results.push_back(*(WRERTKeyValue*)value); // 如果是键值对指针，记录匹配的键值对
+                                        // printf("有效kv - 情况3.2：遍历桶 %llu 中的所有 slot %llu: leftSegmentIndex = %llu, num = %llu, curSubKey = 0x%08llx, value = %llu, migVersion = %llu, _migVersion = %llu, globalDepth = %d, localDepth = %d\n",
+                                        //        i, j, leftSegmentIndex, ++num, curSubKey, (reinterpret_cast<WRERTKeyValue*>(slot->valueFields.value))->value, slot->subKeyFields.migVersion, _migVersion, globalDepth, segmentNode->localDepth);
                                     }
                                 }
                             }
@@ -1157,14 +1179,14 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
             };
             // auto start_time = std::chrono::high_resolution_clock::now();
             if (WRERT_SEGMENT_SIZE / 2 > leftSharedBucketPosition && WRERT_SEGMENT_SIZE / 2 < rightSharedBucketPosition) {
-                // printf("主桶区间1: [%llu, %llu], 共享桶区间: [%llu, %llu], 主桶区间2: [%llu, %llu]\n",
+                // printf("情况3.2：主桶区间1: [%llu, %llu], 共享桶区间: [%llu, %llu], 主桶区间2: [%llu, %llu]\n",
                 //        0, rightMainBucketPosition_2, leftSharedBucketPosition, rightSharedBucketPosition, leftMainBucketPosition_1, WRERT_SEGMENT_SIZE - 1);
                 // 情况2: 三段区间 [startMainBucketPosition, sharedBucketOffset-1], [sharedBucketOffset + sharedBucketIndexStart, sharedBucketOffset + sharedBucketIndexEnd - 1], [sharedBucketOffset + WRERT_SHARED_BUCKETS_PER_SEGMENT, endMainBucketPosition]
                 bucketRangeIterate(0, rightMainBucketPosition_2, localDepth);
                 bucketRangeIterate(leftSharedBucketPosition, rightSharedBucketPosition, localDepth - 1);
                 bucketRangeIterate(leftMainBucketPosition_1, WRERT_SEGMENT_SIZE - 1, localDepth);
             } else {
-                // printf("主桶区间: [%llu, %llu], 共享桶区间: [%llu, %llu]\n", leftMainBucketPosition_1, rightMainBucketPosition_2, leftSharedBucketPosition, rightSharedBucketPosition);
+                // printf("情况3.2：主桶区间2: [%llu, %llu], 共享桶区间: [%llu, %llu]\n", leftMainBucketPosition_1, rightMainBucketPosition_2, leftSharedBucketPosition, rightSharedBucketPosition);
                 // 情况1: 两段区间 [startMainBucketPosition, endMainBucketPosition], [sharedBucketOffset + sharedBucketIndexStart, sharedBucketOffset + sharedBucketIndexEnd - 1]
                 bucketRangeIterate(leftMainBucketPosition_1, rightMainBucketPosition_2, localDepth);
                 bucketRangeIterate(leftSharedBucketPosition, rightSharedBucketPosition, localDepth - 1);
@@ -1175,7 +1197,7 @@ void WRERT::nodeScan(WRERTNode* node, uint64_t leftKey, uint64_t rightKey,
             _segmentIndex = segmentNodeIndexStart + segmentNodeNum;
         }
     }
-
+    // printf("情况3.2：=============\n");
     return;
 }
 

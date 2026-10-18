@@ -56,7 +56,6 @@ void concurrency_fastalloc::init(bool _onPM, string _filePath) {
     nvm_curr = nvm[nvm_cnt];
     nvm_left = CONCURRENCY_ALLOC_SIZE;
     nvm_cnt++;
-    // printf("CONCURRENCY_ALLOC_SIZE: %llu, nvm_left: %llu, nvm_curr: %p\n", CONCURRENCY_ALLOC_SIZE, nvm_left, nvm_curr);
 }
 
 void* fastalloc::alloc(uint64_t size, bool _on_nvm) {
@@ -66,12 +65,10 @@ void* fastalloc::alloc(uint64_t size, bool _on_nvm) {
 #ifdef __linux__
             if (onPM) {
                 string nvm_filename = filePath + to_string(nvm_cnt);
-                // printf("concurrency_fast_alloc nvm_filename: %s\n", nvm_filename.c_str());
                 int nvm_fd = open(nvm_filename.c_str(), O_CREAT | O_RDWR, 0644);
                 if (posix_fallocate(nvm_fd, 0, ALLOC_SIZE) < 0)
                     puts("fallocate fail\n");
                 nvm[nvm_cnt] = (char*)mmap(NULL, ALLOC_SIZE, PROT_READ | PROT_WRITE, MAP_SYNC | MAP_SHARED_VALIDATE, nvm_fd, 0);
-                // printf("concurrency_fast_alloc NVM at address: %p, nvm_cnt: %d, nvm_left: %llu, nvm_curr: %p\n", nvm[nvm_cnt], nvm_cnt, nvm_left, nvm_curr);
             } else {
                 nvm[nvm_cnt] = new char[ALLOC_SIZE];
             }
@@ -84,11 +81,9 @@ void* fastalloc::alloc(uint64_t size, bool _on_nvm) {
             nvm_left -= size;
             void* tmp = nvm_curr;
             nvm_curr = nvm_curr + size;
-            // printf("ALLOC_SIZE: %llu, nvm_left: %llu, nvm_curr: %p\n", ALLOC_SIZE, nvm_left, nvm_curr);
 
             return tmp;
         } else {
-            // printf("concurrency_fast_alloc NVM size: %llu, nvm_left: %llu, nvm_curr: %p\n", size, nvm_left, nvm_curr);
             nvm_left -= size;
             void* tmp = nvm_curr;
             nvm_curr = nvm_curr + size;
@@ -138,8 +133,6 @@ void* fast_alloc(uint64_t size, bool _on_nvm) {
 }
 
 void* concurrency_fast_alloc(uint64_t size, bool _on_nvm) {
-    // printf("concurrency_fast_alloc size: %llu, _on_nvm: %d\n", size, _on_nvm);
-
     return concurrency_myallocator->alloc(size, _on_nvm);
 }
 

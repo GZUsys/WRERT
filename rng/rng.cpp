@@ -1,9 +1,3 @@
-/**
- *    author:     UncP
- *    date:    2019-03-14
- *    license:    BSD-3
- **/
-
 #include "rng.h"
 
 // Bitwise circular left shift.

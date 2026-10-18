@@ -1,7 +1,3 @@
-//
-// Created by 王柯 on 5/25/21.
-//
-
 #ifndef NVMKV_ROART_H
 #define NVMKV_ROART_H
 
@@ -9,7 +5,7 @@
 #include "roart_key.h"
 #include "roart_node.h"
 #include <sys/time.h>
-#include <chrono> // 添加高精度时间测量头文件
+#include <chrono>
 
 // #define LEAF_ARRAY
 
@@ -20,19 +16,16 @@ extern timeval start_time, end_time;
 extern uint64_t _random, _sequential;
 #endif
 
-// 统计范围查询时树遍历延迟（ns）、段访问个数、每个段扫描延迟（ns）
-extern std::vector<uint64_t> roart_range_segment_scan_latency_;     // 范围查询每个段扫描延迟
-                                                                    // 统计每次插入时树遍历延迟（ns）、节点分裂+节点扩容的延迟（ns）或者是叫节点重新调整延迟（ns）、节点更新的延迟（ns）
-extern std::vector<uint64_t> roart_per_insert_node_split_latency_;  // 每次插入时更新节点的延迟
-extern std::vector<uint64_t> roart_per_insert_node_grow_latency_;   // 每次插入时扩展节点的延迟
-extern std::vector<uint64_t> roart_per_insert_node_update_latency_; // 每次插入时更新节点的延迟
+extern std::vector<uint64_t> roart_range_segment_scan_latency_;
+extern std::vector<uint64_t> roart_per_insert_node_split_latency_;
+extern std::vector<uint64_t> roart_per_insert_node_grow_latency_;
+extern std::vector<uint64_t> roart_per_insert_node_update_latency_;
 
 class ROART {
 public:
     N* root;
 
-    // 统计查询时访问每个节点的延迟（ns）、访问节点的个数
-    std::vector<uint64_t> per_search_per_node_latency_ = {}; // 每次搜索时访问每个节点的延迟
+    std::vector<uint64_t> per_search_per_node_latency_ = {};
 
     bool checkKey(const ROART_KEY* ret, const ROART_KEY* k) const;
 

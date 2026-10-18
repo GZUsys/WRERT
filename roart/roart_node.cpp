@@ -1,7 +1,3 @@
-//
-// Created by 王柯 on 5/25/21.
-//
-
 #include "roart_node.h"
 
 #ifdef ROART_PROFILE_TIME
