@@ -11,9 +11,9 @@ rm -rf /pmem0/wrert/*
 # rm -rf ./Log/roart/*
 
 # indices1=("wort" "roart" "ert" "wrert" "woart")
-# indices1=("wrert")
+indices1=("wrert")
 # workloads1=("workloada" "workloadb" "workloadc" "workloadd" "workloade" "workloadf")
-# workloads=("workloada")
+workloads=("workloada")
 
 # 单线程测试
 for idx in "${indices1[@]}"; do
@@ -31,7 +31,7 @@ done
 
 
 # threads=("1" "2" "4" "8" "12" "16" "20" "24" "28" "32" "36" "40")
-threads=("36")
+threads=("2")
 # workloads2=("workloada" "workloadb" "workloadc")
 workloads2=("workloada")
 # indices2=("ert" "wrert")
