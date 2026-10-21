@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# 编译项目
 cmake .
 make clean
 make
@@ -47,14 +46,12 @@ rm -rf /pmem0/wrert/*
 rm -rf ./Log/res.txt
 # rm -rf ./Log/ranInsetPer10M.txt
 
-# ./nvmkv 300 /pmem0/wrert/ >> ./Log/res.txt 2>&1
-
 # for i in {1..2}; do
 #     ./nvmkv 10000000 /pmem0/wrert/ >> ./Log/res.txt 2>&1
 # done
 
 # indices=("wort" "roart" "ert" "wrert" "woart")
-indices=("wrert")
+indices=("ert")
 # test_types=("seq" "ran")
 test_types=("ran")
 
@@ -66,7 +63,7 @@ test_types=("ran")
 #     done
 # done
 
-# 基准性能读写测试
+# Benchmark Performance Read/Write Tests
 for idx in "${indices[@]}"; do
     for type in "${test_types[@]}"; do
         for i in {1..1}; do
@@ -79,7 +76,7 @@ for idx in "${indices[@]}"; do
     done
 done
 
-# 段大小对性能的影响测试
+# Testing the Impact of Block Size on Performance
 # for idx in "${indices[@]}"; do
 #     for type in "${test_types[@]}"; do
 #         for i in {1..1}; do
@@ -92,7 +89,7 @@ done
 #     done
 # done
 
-# 各个操作明细测试
+# Detailed Testing of Each Operation
 # for idx in "${indices[@]}"; do
 #     for type in "${test_types[@]}"; do
 #         for i in {1..5}; do
@@ -105,7 +102,7 @@ done
 #     done
 # done
 
-# 每随机插入10M键测试
+# Random Insertion of 10M Keys Test
 # for i in {1..5}; do
 #     echo ">>> 第 $i 次每随机插入10M键测试 <<<" >> ./Log/ranInsetPer10M.txt 2>&1
 #     ./nvmkv 100000000 /pmem0/wrert/ >> ./Log/ranInsetPer10M.txt 2>&1
@@ -114,7 +111,7 @@ done
 #     echo ">>> 第 $i 次测试循环结束 <<<" >> ./Log/ranInsetPer10M.txt 2>&1
 # done
 
-# 范围查询测试
+# Range Query Testing
 # selectivities=(1)
 # selectivities=(0.001 0.005 0.01 0.02)
 # selectivities=(0.2 0.4 0.6 0.8)

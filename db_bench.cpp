@@ -1022,9 +1022,9 @@ protected:
 
         test_operation("insert", keys, nullptr, count, type, YCSBPhase::NULL_PHASE, PerformanceMetrics::INSERT, metrics);
 
-        test_range_queries(min_key, max_key, type, metrics);
-
         test_operation("search", keys, nullptr, count, type, YCSBPhase::NULL_PHASE, PerformanceMetrics::SEARCH, metrics);
+
+        test_range_queries(min_key, max_key, type, metrics);
 
         analyze_memory(type, metrics);
     }
@@ -1432,7 +1432,7 @@ protected:
         time_us = measure_time([&]() {
             for (int i = 0; i < count; i++) {
                 wrert->search(keys[i]);
-                unique_WRERT_keys.insert(wrert->search(keys[i]));
+                // unique_WRERT_keys.insert(wrert->search(keys[i]));
                 // show_progress(i + 1, count, "查询");
             }
         });

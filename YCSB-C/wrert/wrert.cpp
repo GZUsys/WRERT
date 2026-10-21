@@ -47,7 +47,6 @@ restart:
 
     while (currentKeyPosition < WRERT_KEY_MAX_BYTES) {
         prefixMatchLength = currentNode->directoryNode.header.computePrefix(key, currentKeyPosition << 2, &arrayMatchLength);
-
         if (prefixMatchLength == -1) {
             locks().directory(currentNode).read_unlock();
             locks().directory(currentNode).write_lock();
@@ -80,32 +79,37 @@ restart:
             const uint8_t sharedBucketOffset = segmentNode->sharedBucketOffset == 0 ? 0 : segmentNode->sharedBucketOffset + 1;
             const uint8_t localDepth = segmentNode->localDepth;
             const int8_t sharedBucketVersion = localDepth - 1;
+
             const uint64_t sharedBucketIndex = WRERT_GET_SHARED_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
+            const uint64_t mainBucketIndex = WRERT_GET_MAIN_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
             const uint64_t sharedBucketPosition = sharedBucketOffset + (sharedBucketIndex & WRERT_SHARED_BUCKETS_PER_SEGMENT_MASK);
-            WRERTBucket *mainBucket = nullptr, *targetBucket = nullptr;
+            const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
             WRERTBucket* sharedBucket = &segment->buckets[sharedBucketPosition];
+            WRERTBucket* mainBucket = &segment->buckets[mainBucketPosition];
+            _mm_prefetch((const char*)sharedBucket, _MM_HINT_T0);
+            _mm_prefetch((const char*)mainBucket, _MM_HINT_T0);
 
             locks().bucket(sharedBucket).read_lock();
 
-            uint64_t shareSlotIndex, shareSlotIndex1, mainSlotIndex;
-            // flag：0 sharedBucket，1 mainBucket
+            uint64_t shareSlotIndex, mainSlotIndex;
+            // 0 shared bucket，1 main bucket，-1 not found
             int8_t _isShareOrMainFlag = 0;
             WRERTSlotKeyValue* slot;
             uint64_t _value = 0;
+            WRERTBucket* targetBucket = nullptr;
             bool _isValidSharedSlot = false, _isValidMainSlot = false, _isFindFlag = false, needSMO = false;
 
+            // const __m512i v_offsets = _mm512_load_si512((__m512i*)offsets);
+            const __m512i idx = _mm512_set_epi64(14, 12, 10, 8, 6, 4, 2, 0);
             const __m512i v_subKey_target = _mm512_set1_epi64(subKey);
             const __m512i v_shared_validFlag_migVersion_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)(sharedBucketVersion & WRERT_MIGVERSION_BITS) << 32));
             const __m512i v_validFlag_migVersion_mask = _mm512_set1_epi64(WRERT_VALIDFLAG_MIGVERSION_MASK);
             const __m512i v_subKey_mask = _mm512_set1_epi64(WRERT_SUBKEY_MASK);
-            const __m512i v_offsets = _mm512_load_si512((__m512i*)offsets);
             for (shareSlotIndex = 0; shareSlotIndex < WRERT_SLOTS_PER_BUCKET; shareSlotIndex += 8) {
-                __m512i keys = _mm512_mask_i64gather_epi64(
-                  _mm512_setzero_si512(),
-                  summary_mask,
-                  v_offsets,
-                  (void*)&sharedBucket->counters[shareSlotIndex],
-                  1);
+                // __m512i keys = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), summary_mask, v_offsets, (void*)&sharedBucket->counters[shareSlotIndex], 1);
+                __m512i shared_data0 = _mm512_load_si512((const __m512i*)&sharedBucket->counters[shareSlotIndex]);
+                __m512i shared_data1 = _mm512_load_si512((const __m512i*)&sharedBucket->counters[shareSlotIndex + 4]);
+                __m512i keys = _mm512_permutex2var_epi64(shared_data0, idx, shared_data1);
                 __m512i v_validFlag_migVersion_keys = _mm512_and_si512(keys, v_validFlag_migVersion_mask);
                 __mmask8 validFlag_migVersion_match_mask = _mm512_cmpeq_epi64_mask(v_validFlag_migVersion_keys, v_shared_validFlag_migVersion_target);
                 __mmask8 bad_slot_mask = summary_mask & (~validFlag_migVersion_match_mask);
@@ -119,13 +123,13 @@ restart:
                             _isFindFlag = true;
                             shareSlotIndex += __builtin_ctz(subKey_match_mask);
                             slot = &sharedBucket->counters[shareSlotIndex];
-                            _value = slot->valueFields.value;
+                            _value = slot->value;
                             break;
                         } else {
                             _isValidSharedSlot = true;
                             shareSlotIndex += __builtin_ctz(bad_slot_mask);
                             slot = &sharedBucket->counters[shareSlotIndex];
-                            _value = slot->valueFields.value;
+                            _value = slot->value;
                             break;
                         }
                     }
@@ -133,13 +137,13 @@ restart:
                         _isValidSharedSlot = true;
                         shareSlotIndex += __builtin_ctz(bad_slot_mask);
                         slot = &sharedBucket->counters[shareSlotIndex];
-                        _value = slot->valueFields.value;
+                        _value = slot->value;
                         break;
                     }
                 } else {
                     _isValidSharedSlot = true;
                     slot = &sharedBucket->counters[shareSlotIndex];
-                    _value = slot->valueFields.value;
+                    _value = slot->value;
                     break;
                 }
             }
@@ -147,20 +151,14 @@ restart:
             locks().bucket(sharedBucket).read_unlock();
 
             if (!_isFindFlag) {
-                const uint64_t mainBucketIndex = WRERT_GET_MAIN_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
-                const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
-                mainBucket = &segment->buckets[mainBucketPosition];
-
                 locks().bucket(mainBucket).read_lock();
 
                 const __m512i v_main_validFlag_migVersion_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)localDepth << 32));
                 for (mainSlotIndex = 0; mainSlotIndex < WRERT_SLOTS_PER_BUCKET; mainSlotIndex += 8) {
-                    __m512i keys = _mm512_mask_i64gather_epi64(
-                      _mm512_setzero_si512(),
-                      summary_mask,
-                      v_offsets,
-                      (void*)&mainBucket->counters[mainSlotIndex],
-                      1);
+                    // __m512i keys = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), summary_mask, v_offsets, (void*)&mainBucket->counters[mainSlotIndex], 1);
+                    __m512i main_data0 = _mm512_load_si512((const __m512i*)&mainBucket->counters[mainSlotIndex]);
+                    __m512i main_data1 = _mm512_load_si512((const __m512i*)&mainBucket->counters[mainSlotIndex + 4]);
+                    __m512i keys = _mm512_permutex2var_epi64(main_data0, idx, main_data1);
                     __m512i v_validFlag_migVersion_keys = _mm512_and_si512(keys, v_validFlag_migVersion_mask);
                     __mmask8 validFlag_migVersion_match_mask = _mm512_cmpeq_epi64_mask(v_validFlag_migVersion_keys, v_main_validFlag_migVersion_target);
                     __mmask8 bad_slot_mask = summary_mask & (~validFlag_migVersion_match_mask);
@@ -174,13 +172,13 @@ restart:
                                 _isFindFlag = true;
                                 mainSlotIndex += __builtin_ctz(subKey_match_mask);
                                 slot = &mainBucket->counters[mainSlotIndex];
-                                _value = slot->valueFields.value;
+                                _value = slot->value;
                                 break;
                             } else {
                                 _isValidMainSlot = true;
                                 mainSlotIndex += __builtin_ctz(bad_slot_mask);
                                 slot = &mainBucket->counters[mainSlotIndex];
-                                _value = slot->valueFields.value;
+                                _value = slot->value;
                                 break;
                             }
                         }
@@ -188,13 +186,13 @@ restart:
                             _isValidMainSlot = true;
                             mainSlotIndex += __builtin_ctz(bad_slot_mask);
                             slot = &mainBucket->counters[mainSlotIndex];
-                            _value = slot->valueFields.value;
+                            _value = slot->value;
                             break;
                         }
                     } else {
                         _isValidMainSlot = true;
                         slot = &mainBucket->counters[mainSlotIndex];
-                        _value = slot->valueFields.value;
+                        _value = slot->value;
                         break;
                     }
                 }
@@ -204,7 +202,7 @@ restart:
                 if (!_isFindFlag) {
                     if (_isValidSharedSlot) {
                         slot = &sharedBucket->counters[shareSlotIndex];
-                        _value = slot->valueFields.value;
+                        _value = slot->value;
                     } else if (_isValidMainSlot) {
                         _isShareOrMainFlag = 1;
                     } else {
@@ -267,19 +265,29 @@ restart:
                     return OperationResults::Success;
                 } else {
                     // printf("情况2.1.2: 到达键的末尾，已有键值对，更新值\n");
-                    locks().bucket(targetBucket).write_lock();
-                    needSMO = false;
-                    if (slot->subKeyFields.validFlag == 1
-                        && slot->subKeyFields.migVersion == localDepth - !_isShareOrMainFlag
-                        && slot->valueFields.value != _value) {
-                        locks().bucket(targetBucket).write_unlock();
+                    // locks().bucket(targetBucket).write_lock();
+                    // if (slot->subKeyFields.validFlag == 1
+                    //     && slot->subKeyFields.migVersion == localDepth - !_isShareOrMainFlag
+                    //     && slot->subKeyFields.subKey != subKey
+                    //     && slot->value != _value) {
+                    //     locks().bucket(targetBucket).write_unlock();
+                    //     locks().segment(segment).read_unlock();
+                    //     locks().directory(currentNode).read_unlock();
+                    //     global_cas_retry_count1.fetch_add(1, std::memory_order_relaxed);
+                    //     goto restart;
+                    // }
+
+                    if (!__atomic_compare_exchange_n(&slot->value, &_value, value, false,
+                                                     __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {
                         locks().segment(segment).read_unlock();
                         locks().directory(currentNode).read_unlock();
+                        // global_cas_retry_count1.fetch_add(1, std::memory_order_relaxed);
                         goto restart;
                     }
-                    slot->valueFields.value = value;
+
+                    // slot->valueFields.value = value;
                     clflush((char*)&slot->valueFields, sizeof(slot->valueFields));
-                    locks().bucket(targetBucket).write_unlock();
+                    // locks().bucket(targetBucket).write_unlock();
                     locks().segment(segment).read_unlock();
                     locks().directory(currentNode).read_unlock();
                     return OperationResults::Success;
@@ -358,19 +366,21 @@ restart:
                         WRERTKeyValue* kv = (WRERTKeyValue*)slot->valueFields.value;
                         if (kv->key == key) {
                             // printf("情况2.2.3: 还未到达键的末尾，已有键值对，更新值\n");
-                            locks().bucket(targetBucket).write_lock();
-                            needSMO = false;
-                            if (slot->subKeyFields.validFlag == 1
-                                && slot->subKeyFields.migVersion == localDepth - !_isShareOrMainFlag
-                                && slot->valueFields.value != _value) {
-                                locks().bucket(targetBucket).write_unlock();
-                                locks().segment(segment).read_unlock();
-                                locks().directory(currentNode).read_unlock();
-                                goto restart;
-                            }
-                            kv->value = value;
+                            // locks().bucket(targetBucket).write_lock();
+                            // if (slot->subKeyFields.validFlag == 1
+                            //     && slot->subKeyFields.migVersion == localDepth - !_isShareOrMainFlag
+                            //     && slot->subKeyFields.subKey != subKey
+                            //     && slot->value != _value) {
+                            //     locks().bucket(targetBucket).write_unlock();
+                            //     locks().segment(segment).read_unlock();
+                            //     locks().directory(currentNode).read_unlock();
+                            //     global_cas_retry_count2.fetch_add(1, std::memory_order_relaxed);
+                            //     goto restart;
+                            // }
+                            __atomic_store_n(&kv->value, value, __ATOMIC_RELAXED);
+                            // kv->value = value;
                             clflush((char*)&kv->value, sizeof(kv->value));
-                            locks().bucket(targetBucket).write_unlock();
+                            // locks().bucket(targetBucket).write_unlock();
                             locks().segment(segment).read_unlock();
                             locks().directory(currentNode).read_unlock();
                             return OperationResults::Success;
@@ -485,6 +495,7 @@ OperationResults WRERT::insertNewNode(uint64_t key, uint64_t value, WRERTNode* n
     uint32_t arrayMatchLength = 0;
     uint8_t nodeFlag;
     uint16_t fingerprint = 0;
+
     int prefixMatchLength;
     while (currentKeyPosition < WRERT_KEY_MAX_BYTES) {
         prefixMatchLength = currentNode->directoryNode.header.computePrefix(key, currentKeyPosition << 2, &arrayMatchLength);
@@ -498,35 +509,42 @@ OperationResults WRERT::insertNewNode(uint64_t key, uint64_t value, WRERTNode* n
             return OperationResults::Success;
         } else if (currentNode->directoryNode.header.prefixLength == prefixMatchLength) {
             currentKeyPosition += currentNode->directoryNode.header.prefixLength << 2;
+
             const uint64_t subKey = WRERT_GET_SUBKEY(key, (currentKeyPosition << 3), WRERT_NODE_SPAN);
             const uint8_t globalDepth = currentNode->directoryNode.directory.globalDepth;
             const uint64_t segmentIndex = WRERT_GET_SEGMENT_NUMBER(subKey, WRERT_NODE_SPAN, globalDepth);
             WRERTSegmentNode* segmentNode = reinterpret_cast<WRERTSegmentNode*>(
               WRERT_GET_SEGMENT_POSITION(&currentNode->directoryNode, segmentIndex));
             WRERTSegment* segment = reinterpret_cast<WRERTSegment*>(segmentNode->segmentPtr);
+
             const uint8_t sharedBucketOffset = segmentNode->sharedBucketOffset == 0 ? 0 : segmentNode->sharedBucketOffset + 1;
             const uint8_t localDepth = segmentNode->localDepth;
-            const uint64_t sharedBucketIndex = WRERT_GET_SHARED_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
-            const uint64_t sharedBucketPosition = sharedBucketOffset + (sharedBucketIndex & WRERT_SHARED_BUCKETS_PER_SEGMENT_MASK);
-            WRERTBucket* sharedBucket = &segment->buckets[sharedBucketPosition];
             const int8_t sharedBucketVersion = localDepth - 1;
-            uint64_t shareSlotIndex, shareSlotIndex1, mainSlotIndex;
+
+            const uint64_t sharedBucketIndex = WRERT_GET_SHARED_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
+            const uint64_t mainBucketIndex = WRERT_GET_MAIN_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
+            const uint64_t sharedBucketPosition = sharedBucketOffset + (sharedBucketIndex & WRERT_SHARED_BUCKETS_PER_SEGMENT_MASK);
+            const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
+            WRERTBucket* sharedBucket = &segment->buckets[sharedBucketPosition];
+            WRERTBucket* mainBucket = &segment->buckets[mainBucketPosition];
+            _mm_prefetch((const char*)mainBucket, _MM_HINT_T0);
+            _mm_prefetch((const char*)sharedBucket, _MM_HINT_T0);
+
+            uint64_t shareSlotIndex, mainSlotIndex;
+            // 0 shared bucket，1 main bucket
             int8_t _isShareOrMainFlag = 0;
             WRERTSlotKeyValue* slot;
             bool _isValidSharedSlot = false, _isValidMainSlot = false, _isFindFlag = false;
 
+            const __m512i idx = _mm512_set_epi64(14, 12, 10, 8, 6, 4, 2, 0);
             const __m512i v_subKey_target = _mm512_set1_epi64(subKey);
             const __m512i v_shared_validFlag_migVersion_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)(sharedBucketVersion & WRERT_MIGVERSION_BITS) << 32));
             const __m512i v_validFlag_migVersion_mask = _mm512_set1_epi64(WRERT_VALIDFLAG_MIGVERSION_MASK);
             const __m512i v_subKey_mask = _mm512_set1_epi64(WRERT_SUBKEY_MASK);
-            const __m512i v_offsets = _mm512_load_si512((__m512i*)offsets);
             for (shareSlotIndex = 0; shareSlotIndex < WRERT_SLOTS_PER_BUCKET; shareSlotIndex += 8) {
-                __m512i keys = _mm512_mask_i64gather_epi64(
-                  _mm512_setzero_si512(),
-                  summary_mask,
-                  v_offsets,
-                  (void*)&sharedBucket->counters[shareSlotIndex],
-                  1);
+                __m512i shared_data0 = _mm512_load_si512((const __m512i*)&sharedBucket->counters[shareSlotIndex]);
+                __m512i shared_data1 = _mm512_load_si512((const __m512i*)&sharedBucket->counters[shareSlotIndex + 4]);
+                __m512i keys = _mm512_permutex2var_epi64(shared_data0, idx, shared_data1);
                 __m512i v_validFlag_migVersion_keys = _mm512_and_si512(keys, v_validFlag_migVersion_mask);
                 __mmask8 validFlag_migVersion_match_mask = _mm512_cmpeq_epi64_mask(v_validFlag_migVersion_keys, v_shared_validFlag_migVersion_target);
                 __mmask8 bad_slot_mask = summary_mask & (~validFlag_migVersion_match_mask);
@@ -562,17 +580,11 @@ OperationResults WRERT::insertNewNode(uint64_t key, uint64_t value, WRERTNode* n
             }
 
             if (!_isFindFlag) {
-                const uint64_t mainBucketIndex = WRERT_GET_MAIN_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
-                const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
-                WRERTBucket* mainBucket = &segment->buckets[mainBucketPosition];
                 const __m512i v_main_validFlag_migVersion_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)localDepth << 32));
                 for (mainSlotIndex = 0; mainSlotIndex < WRERT_SLOTS_PER_BUCKET; mainSlotIndex += 8) {
-                    __m512i keys = _mm512_mask_i64gather_epi64(
-                      _mm512_setzero_si512(),
-                      summary_mask,
-                      v_offsets,
-                      (void*)&mainBucket->counters[mainSlotIndex],
-                      1);
+                    __m512i main_data0 = _mm512_load_si512((const __m512i*)&mainBucket->counters[mainSlotIndex]);
+                    __m512i main_data1 = _mm512_load_si512((const __m512i*)&mainBucket->counters[mainSlotIndex + 4]);
+                    __m512i keys = _mm512_permutex2var_epi64(main_data0, idx, main_data1);
                     __m512i v_validFlag_migVersion_keys = _mm512_and_si512(keys, v_validFlag_migVersion_mask);
                     __mmask8 validFlag_migVersion_match_mask = _mm512_cmpeq_epi64_mask(v_validFlag_migVersion_keys, v_main_validFlag_migVersion_target);
                     __mmask8 bad_slot_mask = summary_mask & (~validFlag_migVersion_match_mask);
@@ -619,11 +631,13 @@ OperationResults WRERT::insertNewNode(uint64_t key, uint64_t value, WRERTNode* n
             }
 
             currentKeyPosition += WRERT_NODE_SUBKEY_MAX_BYTES;
+
             if (currentKeyPosition == WRERT_KEY_MAX_BYTES) {
                 if (!_isFindFlag || slot == nullptr) {
                     currentNode->put(
                       subKey, value, segmentNode, segment, slot,
                       segmentIndex, sharedBucketOffset, fingerprint, _isShareOrMainFlag, nodeFlag = 0, &beforeAddress);
+
                     return OperationResults::Success;
                 } else {
                     slot->valueFields.value = value;
@@ -637,9 +651,11 @@ OperationResults WRERT::insertNewNode(uint64_t key, uint64_t value, WRERTNode* n
                         kv = NewWRERTKeyValue(key, value);
                         clflush((char*)kv, sizeof(WRERTKeyValue));
                     }
+
                     currentNode->put(
                       subKey, (uint64_t)kv, segmentNode, segment, slot,
                       segmentIndex, sharedBucketOffset, fingerprint, _isShareOrMainFlag, nodeFlag = 0, &beforeAddress);
+
                     return OperationResults::Success;
                 } else {
                     if (slot->subKeyFields.nodeFlag == 1) {
@@ -653,14 +669,22 @@ OperationResults WRERT::insertNewNode(uint64_t key, uint64_t value, WRERTNode* n
                             return OperationResults::Success;
                         } else {
                             WRERTNode* newNode = NewWRERTNode();
+
                             newNode->directoryNode.header.initialize(
                               &currentNode->directoryNode.header, 0, currentKeyPosition / WRERT_NODE_SUBKEY_MAX_BYTES);
+
+                            // TUDO: 待优化
+
                             insert(kv->key, kv->value, newNode, currentKeyPosition, kv);
                             insert(key, value, newNode, currentKeyPosition, _kv);
+
                             clflush((char*)newNode, sizeof(WRERTNode));
+
                             slot->subKeyFields.nodeFlag = 1;
                             slot->valueFields.value = (uint64_t)newNode;
+
                             clflush((char*)slot, sizeof(WRERTSlotKeyValue));
+
                             return OperationResults::Success;
                         }
                     }
@@ -681,7 +705,6 @@ OperationResults WRERT::insertNewNode(uint64_t key, uint64_t value, WRERTNode* n
             uint64_t subKey = WRERT_GET_SUBKEY(key, (currentKeyPosition + prefixMatchLength) * WRERT_SIZE_OF_CHAR, WRERT_NODE_SPAN);
             WRERTKeyValue* kv = NewWRERTKeyValue(key, value);
             clflush((char*)kv, sizeof(WRERTKeyValue));
-
             newNode->putSegNode(subKey, (uint64_t)kv, fingerprint, &beforeAddress, nodeFlag = 0);
             newNode->putSegNode(WRERT_GET_PREFIX_ARRAY_BITS(currentNode->directoryNode.header.prefixArray,
                                                             prefixMatchLength * WRERT_NODE_SUBKEY_MAX_BYTES,
@@ -692,6 +715,7 @@ OperationResults WRERT::insertNewNode(uint64_t key, uint64_t value, WRERTNode* n
               (prefixMatchLength + newNode->directoryNode.header.nodeHeaderDepth + 1);
             currentNode->directoryNode.header.nodeHeaderDepth =
               newNode->directoryNode.header.prefixLength + newNode->directoryNode.header.nodeHeaderDepth + 1;
+
             for (size_t i = 0; i <= prefixMatchLength; i++) {
                 for (size_t j = i * WRERT_NODE_SUBKEY_MAX_BYTES; j < (i + 1) * WRERT_NODE_SUBKEY_MAX_BYTES; j++) {
                     if (j + WRERT_NODE_SUBKEY_MAX_BYTES < WRERT_NODE_PREFIX_MAX_BYTES) {
@@ -701,8 +725,10 @@ OperationResults WRERT::insertNewNode(uint64_t key, uint64_t value, WRERTNode* n
                     }
                 }
             }
+
             clflush((char*)newNode, sizeof(WRERTNode));
             clflush((char*)&(currentNode->directoryNode.header), sizeof(WRERTHeader));
+
             if (newNode->directoryNode.header.nodeHeaderDepth != 0) {
                 ((WRERTSlotKeyValue*)beforeAddress)->valueFields.value = (uint64_t)newNode;
                 clflush((char*)(WRERTSlotKeyValue*)beforeAddress, sizeof(WRERTSlotKeyValue));
@@ -710,9 +736,11 @@ OperationResults WRERT::insertNewNode(uint64_t key, uint64_t value, WRERTNode* n
                 *(WRERTNode**)beforeAddress = newNode;
                 clflush((char*)beforeAddress, sizeof(WRERTNode*));
             }
+
             return OperationResults::Success;
         }
     }
+
     return OperationResults::Failed;
 }
 
@@ -720,22 +748,18 @@ uint64_t WRERT::search(uint64_t key, WRERTNode* node, int keyLength) {
 restart:
     WRERTNode* currentNode = node ? node : root;
     locks().directory(currentNode).read_lock();
-
     if (WRERT_UNLIKELY(currentNode == nullptr)) {
         locks().directory(currentNode).read_unlock();
         return (uint64_t)OperationResults::NotFound;
     }
-
     if (node == nullptr && currentNode != root) {
         locks().directory(currentNode).read_unlock();
         goto restart;
     }
-
     uint32_t currentKeyPosition = keyLength;
     uint32_t arrayMatchLength;
     uint64_t result = -1;
     int prefixMatchLength;
-
     while (currentKeyPosition < WRERT_KEY_MAX_BYTES) {
         if (WRERT_UNLIKELY(currentNode->directoryNode.header.prefixLength > 0)) {
             prefixMatchLength = currentNode->directoryNode.header.computePrefix(key, currentKeyPosition * WRERT_SIZE_OF_CHAR, &arrayMatchLength);
@@ -751,11 +775,9 @@ restart:
                 return (uint64_t)OperationResults::Failed;
             }
         }
-
         uint64_t subKey = WRERT_GET_SUBKEY(key, (currentKeyPosition << 3), WRERT_NODE_SPAN);
         const uint8_t globalDepth = currentNode->directoryNode.directory.globalDepth;
         const uint64_t segmentIndex = WRERT_GET_SEGMENT_NUMBER(subKey, WRERT_NODE_SPAN, globalDepth);
-
         WRERTSegmentNode* segmentNode = reinterpret_cast<WRERTSegmentNode*>(
           WRERT_GET_SEGMENT_POSITION(&currentNode->directoryNode, segmentIndex));
         WRERTSegment* segment = reinterpret_cast<WRERTSegment*>(segmentNode->segmentPtr);
@@ -768,6 +790,11 @@ restart:
         const uint64_t sharedBucketIndex = WRERT_GET_SHARED_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
         const uint64_t sharedBucketPosition = sharedBucketOffset + (sharedBucketIndex & WRERT_SHARED_BUCKETS_PER_SEGMENT_MASK);
         WRERTBucket* sharedBucket = &segment->buckets[sharedBucketPosition];
+        const uint64_t mainBucketIndex = WRERT_GET_MAIN_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
+        const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
+        WRERTBucket* mainBucket = &segment->buckets[mainBucketPosition];
+        _mm_prefetch((const char*)sharedBucket, _MM_HINT_T0);
+        _mm_prefetch((const char*)mainBucket, _MM_HINT_T0);
 
         locks().bucket(sharedBucket).read_lock();
 
@@ -775,21 +802,20 @@ restart:
         uint8_t _nodeFlag = -1;
         bool isFindFlag = false;
 
-        const __m512i v_shared_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)(sharedBucketVersion & WRERT_MIGVERSION_BITS) << 32) | subKey);
-        const __m512i v_offsets = _mm512_load_si512((__m512i*)offsets);
+        // const __m512i v_offsets = _mm512_load_si512((__m512i*)offsets);
+        const __m512i idx = _mm512_set_epi64(14, 12, 10, 8, 6, 4, 2, 0);
         const __m512i v_42bits_mask = _mm512_set1_epi64(WRERT_VALIDFLAG_MIGVERSION_SUBKEY_MASK);
-        for (uint64_t shareSlotIndex = 0; shareSlotIndex < WRERT_SLOTS_PER_BUCKET; shareSlotIndex += 8) {
-            __m512i keys = _mm512_mask_i64gather_epi64(
-              _mm512_setzero_si512(),
-              summary_mask,
-              v_offsets,
-              (void*)&sharedBucket->counters[shareSlotIndex],
-              1);
-            __m512i v_keys = _mm512_and_si512(keys, v_42bits_mask);
-            __mmask8 match_mask = _mm512_cmpeq_epi64_mask(v_keys, v_shared_target);
-            if (match_mask) {
-                int j = __builtin_ctz(match_mask);
-                slot = &sharedBucket->counters[shareSlotIndex + j];
+        const __m512i v_shared_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)(sharedBucketVersion & WRERT_MIGVERSION_BITS) << 32) | subKey);
+        for (uint64_t slotIndex = 0; slotIndex < WRERT_SLOTS_PER_BUCKET; slotIndex += 8) {
+            // __m512i keys_shared = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), summary_mask, v_offsets, (void*)&sharedBucket->counters[slotIndex], 1);
+            __m512i shared_data0 = _mm512_load_si512((const __m512i*)&sharedBucket->counters[slotIndex]);
+            __m512i shared_data1 = _mm512_load_si512((const __m512i*)&sharedBucket->counters[slotIndex + 4]);
+            __m512i keys_shared = _mm512_permutex2var_epi64(shared_data0, idx, shared_data1);
+            __m512i v_keys_shared = _mm512_and_si512(keys_shared, v_42bits_mask);
+            __mmask8 match_mask_shared = _mm512_cmpeq_epi64_mask(v_keys_shared, v_shared_target);
+            if (match_mask_shared) {
+                int j = __builtin_ctz(match_mask_shared);
+                slot = &sharedBucket->counters[slotIndex + j];
                 result = slot->valueFields.value;
                 _nodeFlag = slot->subKeyFields.nodeFlag;
                 isFindFlag = true;
@@ -800,25 +826,19 @@ restart:
         locks().bucket(sharedBucket).read_unlock();
 
         if (!isFindFlag) {
-            const uint64_t mainBucketIndex = WRERT_GET_MAIN_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
-            const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
-            WRERTBucket* mainBucket = &segment->buckets[mainBucketPosition];
-
             locks().bucket(mainBucket).read_lock();
 
             const __m512i v_main_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)localDepth << 32) | subKey);
-            for (uint64_t mainSlotIndex = 0; mainSlotIndex < WRERT_SLOTS_PER_BUCKET; mainSlotIndex += 8) {
-                __m512i keys = _mm512_mask_i64gather_epi64(
-                  _mm512_setzero_si512(),
-                  summary_mask,
-                  v_offsets,
-                  (void*)&mainBucket->counters[mainSlotIndex],
-                  1);
-                __m512i v_keys = _mm512_and_si512(keys, v_42bits_mask);
-                __mmask8 match_mask = _mm512_cmpeq_epi64_mask(v_keys, v_main_target);
-                if (match_mask) {
-                    int j = __builtin_ctz(match_mask);
-                    slot = &mainBucket->counters[mainSlotIndex + j];
+            for (uint64_t slotIndex = 0; slotIndex < WRERT_SLOTS_PER_BUCKET; slotIndex += 8) {
+                // __m512i keys_main = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), summary_mask, v_offsets, (void*)&mainBucket->counters[slotIndex], 1);
+                __m512i main_data0 = _mm512_load_si512((const __m512i*)&mainBucket->counters[slotIndex]);
+                __m512i main_data1 = _mm512_load_si512((const __m512i*)&mainBucket->counters[slotIndex + 4]);
+                __m512i keys_main = _mm512_permutex2var_epi64(main_data0, idx, main_data1);
+                __m512i v_keys_main = _mm512_and_si512(keys_main, v_42bits_mask);
+                __mmask8 match_mask_main = _mm512_cmpeq_epi64_mask(v_keys_main, v_main_target);
+                if (match_mask_main) {
+                    int j = __builtin_ctz(match_mask_main);
+                    slot = &mainBucket->counters[slotIndex + j];
                     result = slot->valueFields.value;
                     _nodeFlag = slot->subKeyFields.nodeFlag;
                     isFindFlag = true;
@@ -837,7 +857,6 @@ restart:
             locks().directory(currentNode).read_unlock();
             return (uint64_t)OperationResults::Failed;
         }
-
         if (_nodeFlag != slot->subKeyFields.nodeFlag) {
             locks().segment(segment).read_unlock();
             locks().directory(currentNode).read_unlock();
@@ -886,8 +905,7 @@ restart:
             currentNode = subNode;
         }
     }
-
-    // locks().directory(currentNode).read_unlock();
+    locks().directory(currentNode).read_unlock();
     return (uint64_t)OperationResults::Failed;
 }
 
@@ -896,14 +914,12 @@ std::vector<WRERTKeyValue> WRERT::lookupRange(uint64_t leftKey, uint64_t rightKe
 
     nodeScan(root, leftKey, rightKey, results, 0, 0);
 
-    // 按照value排序打印kv
     // std::sort(results.begin(), results.end(), [](const WRERTKeyValue& a, const WRERTKeyValue& b) {
     //     return a.value < b.value;
     // });
     // for (const auto& kv : results) {
     //     printf("key: %llu, value: %llu\n", kv.key, kv.value);
     // }
-    // 现在有1000个key，value从0到9999，打印value值不在results中的kv
     // for (uint64_t i = 0, j = 0; i < 10000; i++) {
     //     if (results[j].value != i) {
     //         printf("value: %llu\n", i);

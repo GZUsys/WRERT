@@ -110,9 +110,9 @@ constexpr uint64_t WRERT_MIGVERSION_BITS = 0x1FF;
 constexpr uint64_t WRERT_VALUE_PTR_MASK = 0x0000FFFFFFFFFFFFULL;
 
 enum class OperationResults : int {
-    Failed = -1,   // 操作失败
-    Success = 0,   // 操作成功
-    NotFound = -2, // 未找到（删除操作）
+    Failed = -1,
+    Success = 0,
+    NotFound = -2,
 };
 
 class WRERTKeyValue {
@@ -199,7 +199,7 @@ public:
 
 class WRERTSegment {
 public:
-    WRERTBucket buckets[WRERT_SEGMENT_SIZE]; // 桶指针数组
+    WRERTBucket buckets[WRERT_SEGMENT_SIZE];
 
 public:
     WRERTSegment();

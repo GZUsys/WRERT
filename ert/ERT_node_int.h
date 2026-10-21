@@ -41,7 +41,6 @@ public:
     uint64_t key = 0;
     uint64_t value = 0;
 
-    // 赋值操作符重载
     void operator=(ERTIntKeyValue a) {
         this->key = a.key;
         this->value = a.value;

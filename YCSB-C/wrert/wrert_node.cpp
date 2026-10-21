@@ -116,33 +116,37 @@ uint64_t WRERTNode::getDirNode(WRERTKeyValue* globalSegment, uint64_t key) {
 OperationResults WRERTNode::putSegNode(uint64_t subKey, uint64_t value, uint16_t _fingerprint, uint64_t* beforeAddress, uint8_t _nodeFlag) {
     const uint8_t globalDepth = this->directoryNode.directory.globalDepth;
     const uint64_t segmentIndex = WRERT_GET_SEGMENT_NUMBER(subKey, WRERT_NODE_SPAN, globalDepth);
-
     WRERTSegmentNode* segmentNode = reinterpret_cast<WRERTSegmentNode*>(
       WRERT_GET_SEGMENT_POSITION(&this->directoryNode, segmentIndex));
     WRERTSegment* segment = reinterpret_cast<WRERTSegment*>(segmentNode->segmentPtr);
 
     const uint8_t sharedBucketOffset = segmentNode->sharedBucketOffset == 0 ? 0 : segmentNode->sharedBucketOffset + 1;
     const uint8_t localDepth = segmentNode->localDepth;
+    const uint8_t sharedBucketVersion = localDepth - 1;
 
     const uint64_t sharedBucketIndex = WRERT_GET_SHARED_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
+    const uint64_t mainBucketIndex = WRERT_GET_MAIN_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
     const uint64_t sharedBucketPosition = sharedBucketOffset + (sharedBucketIndex & WRERT_SHARED_BUCKETS_PER_SEGMENT_MASK);
+    const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
     WRERTBucket* sharedBucket = &segment->buckets[sharedBucketPosition];
+    WRERTBucket* mainBucket = &segment->buckets[mainBucketPosition];
+    _mm_prefetch((const char*)sharedBucket, _MM_HINT_T0);
+    _mm_prefetch((const char*)mainBucket, _MM_HINT_T0);
 
     uint64_t shareSlotIndex, mainSlotIndex, currentSharedBucketIndex, currentMainBucketIndex;
-    const uint8_t sharedBucketVersion = localDepth - 1;
-    int _isShareOrMainFlag;
+    // 0 shared bucket，1 main bucket，-1 not found
+    int _isShareOrMainFlag = 0;
     WRERTSlotKeyValue* slot;
 
+    // const __m512i v_offsets = _mm512_load_si512((__m512i*)offsets);
+    const __m512i idx = _mm512_set_epi64(14, 12, 10, 8, 6, 4, 2, 0);
     const __m512i v_target1 = _mm512_set1_epi64(sharedBucketVersion);
-    const __m512i v_offsets = _mm512_load_si512((__m512i*)offsets);
     const __m512i v_migVersion_mask = _mm512_set1_epi64(WRERT_MIGVERSION_MASK);
     for (uint64_t shareSlotIndex = 0; shareSlotIndex < WRERT_SLOTS_PER_BUCKET; shareSlotIndex += 8) {
-        __m512i keys = _mm512_mask_i64gather_epi64(
-          _mm512_setzero_si512(),
-          summary_mask,
-          v_offsets,
-          (void*)&sharedBucket->counters[shareSlotIndex],
-          1);
+        // __m512i keys = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), summary_mask, v_offsets, (void*)&sharedBucket->counters[shareSlotIndex], 1);
+        __m512i shared_data0 = _mm512_load_si512((const __m512i*)&sharedBucket->counters[shareSlotIndex]);
+        __m512i shared_data1 = _mm512_load_si512((const __m512i*)&sharedBucket->counters[shareSlotIndex + 4]);
+        __m512i keys = _mm512_permutex2var_epi64(shared_data0, idx, shared_data1);
         __m512i v_migVersion = _mm512_and_si512(keys, v_migVersion_mask);
         v_migVersion = _mm512_srli_epi64(v_migVersion, 32);
         __mmask8 match_mask = _mm512_cmpneq_epi64_mask(v_migVersion, v_target1);
@@ -154,18 +158,12 @@ OperationResults WRERTNode::putSegNode(uint64_t subKey, uint64_t value, uint16_t
         }
     }
 
-    const uint64_t mainBucketIndex = WRERT_GET_MAIN_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
-    const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
-    WRERTBucket* mainBucket = &segment->buckets[mainBucketPosition];
-
     const __m512i v_target2 = _mm512_set1_epi64(localDepth);
     for (uint64_t mainSlotIndex = 0; mainSlotIndex < WRERT_SLOTS_PER_BUCKET; mainSlotIndex += 8) {
-        __m512i keys = _mm512_mask_i64gather_epi64(
-          _mm512_setzero_si512(),
-          summary_mask,
-          v_offsets,
-          (void*)&mainBucket->counters[mainSlotIndex],
-          1);
+        // __m512i keys = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), summary_mask, v_offsets, (void*)&mainBucket->counters[mainSlotIndex], 1);
+        __m512i main_data0 = _mm512_load_si512((const __m512i*)&mainBucket->counters[mainSlotIndex]);
+        __m512i main_data1 = _mm512_load_si512((const __m512i*)&mainBucket->counters[mainSlotIndex + 4]);
+        __m512i keys = _mm512_permutex2var_epi64(main_data0, idx, main_data1);
         __m512i v_migVersion = _mm512_and_si512(keys, v_migVersion_mask);
         v_migVersion = _mm512_srli_epi64(v_migVersion, 32);
         __mmask8 match_mask = _mm512_cmpneq_epi64_mask(v_migVersion, v_target2);
@@ -185,61 +183,48 @@ OperationResults WRERTNode::putSegNode(uint64_t subKey, uint64_t value, uint16_t
 WRERTSlotKeyValue* WRERTNode::getSegNode(uint64_t subKey) {
     const uint8_t globalDepth = this->directoryNode.directory.globalDepth;
     const uint64_t segmentIndex = WRERT_GET_SEGMENT_NUMBER(subKey, WRERT_NODE_SPAN, globalDepth);
-
     WRERTSegmentNode* segmentNode = reinterpret_cast<WRERTSegmentNode*>(
       WRERT_GET_SEGMENT_POSITION(&this->directoryNode, segmentIndex));
     WRERTSegment* segment = reinterpret_cast<WRERTSegment*>(segmentNode->segmentPtr);
-
     const uint8_t sharedBucketOffset = segmentNode->sharedBucketOffset == 0 ? 0 : segmentNode->sharedBucketOffset + 1;
     const uint8_t localDepth = segmentNode->localDepth;
-
-    const uint64_t sharedBucketIndex = WRERT_GET_SHARED_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
-    const uint64_t sharedBucketPosition = sharedBucketOffset + (sharedBucketIndex & WRERT_SHARED_BUCKETS_PER_SEGMENT_MASK);
-    WRERTBucket* sharedBucket = &segment->buckets[sharedBucketPosition];
-
     const int8_t sharedBucketVersion = localDepth - 1;
-    WRERTSlotKeyValue* slot;
-
-    const __m512i v_shared_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)(sharedBucketVersion & WRERT_MIGVERSION_BITS) << 32) | subKey);
-    const __m512i v_offsets = _mm512_load_si512((__m512i*)offsets);
-    const __m512i v_42bits_mask = _mm512_set1_epi64(WRERT_VALIDFLAG_MIGVERSION_SUBKEY_MASK);
-    for (uint64_t shareSlotIndex = 0; shareSlotIndex < WRERT_SLOTS_PER_BUCKET; shareSlotIndex += 8) {
-        __m512i keys = _mm512_mask_i64gather_epi64(
-          _mm512_setzero_si512(),
-          summary_mask,
-          v_offsets,
-          (void*)&sharedBucket->counters[shareSlotIndex],
-          1);
-        __m512i v_keys = _mm512_and_si512(keys, v_42bits_mask);
-
-        __mmask8 match_mask = _mm512_cmpeq_epi64_mask(v_keys, v_shared_target);
-        if (match_mask) {
-            int j = __builtin_ctz(match_mask);
-            return &sharedBucket->counters[shareSlotIndex + j];
-        }
-    }
-
+    const uint64_t sharedBucketIndex = WRERT_GET_SHARED_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
     const uint64_t mainBucketIndex = WRERT_GET_MAIN_BUCKET_INDEX(subKey, localDepth, WRERT_MAIN_BUCKETS_MAX_BITS);
+    const uint64_t sharedBucketPosition = sharedBucketOffset + (sharedBucketIndex & WRERT_SHARED_BUCKETS_PER_SEGMENT_MASK);
     const uint64_t mainBucketPosition = calcBucketPosition(sharedBucketOffset, mainBucketIndex);
+    WRERTBucket* sharedBucket = &segment->buckets[sharedBucketPosition];
     WRERTBucket* mainBucket = &segment->buckets[mainBucketPosition];
-
+    _mm_prefetch((const char*)sharedBucket, _MM_HINT_T0);
+    _mm_prefetch((const char*)mainBucket, _MM_HINT_T0);
+    WRERTSlotKeyValue* slot = nullptr;
+    // const __m512i v_offsets = _mm512_load_si512((__m512i*)offsets);
+    const __m512i idx = _mm512_set_epi64(14, 12, 10, 8, 6, 4, 2, 0);
+    const __m512i v_42bits_mask = _mm512_set1_epi64(WRERT_VALIDFLAG_MIGVERSION_SUBKEY_MASK);
+    const __m512i v_shared_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)(sharedBucketVersion & WRERT_MIGVERSION_BITS) << 32) | subKey);
     const __m512i v_main_target = _mm512_set1_epi64((1ULL << 41) | ((uint64_t)localDepth << 32) | subKey);
-    for (uint64_t mainSlotIndex = 0; mainSlotIndex < WRERT_SLOTS_PER_BUCKET; mainSlotIndex += 8) {
-        __m512i keys = _mm512_mask_i64gather_epi64(
-          _mm512_setzero_si512(),
-          summary_mask,
-          v_offsets,
-          (void*)&mainBucket->counters[mainSlotIndex],
-          1);
-        __m512i v_keys = _mm512_and_si512(keys, v_42bits_mask);
-        __mmask8 match_mask = _mm512_cmpeq_epi64_mask(v_keys, v_main_target);
-        if (match_mask) {
-            int j = __builtin_ctz(match_mask);
-            return &mainBucket->counters[mainSlotIndex + j];
+    for (uint64_t slotIndex = 0; slotIndex < WRERT_SLOTS_PER_BUCKET; slotIndex += 8) {
+        // __m512i keys_shared = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), summary_mask, v_offsets, (void*)&sharedBucket->counters[slotIndex], 1);
+        // __m512i keys_main = _mm512_mask_i64gather_epi64(_mm512_setzero_si512(), summary_mask, v_offsets, (void*)&mainBucket->counters[slotIndex], 1);
+        __m512i shared_data0 = _mm512_load_si512((const __m512i*)&sharedBucket->counters[slotIndex]);
+        __m512i shared_data1 = _mm512_load_si512((const __m512i*)&sharedBucket->counters[slotIndex + 4]);
+        __m512i main_data0 = _mm512_load_si512((const __m512i*)&mainBucket->counters[slotIndex]);
+        __m512i main_data1 = _mm512_load_si512((const __m512i*)&mainBucket->counters[slotIndex + 4]);
+        __m512i keys_shared = _mm512_permutex2var_epi64(shared_data0, idx, shared_data1);
+        __m512i keys_main = _mm512_permutex2var_epi64(main_data0, idx, main_data1);
+        __m512i v_keys_shared = _mm512_and_si512(keys_shared, v_42bits_mask);
+        __m512i v_keys_main = _mm512_and_si512(keys_main, v_42bits_mask);
+        __mmask8 match_mask_shared = _mm512_cmpeq_epi64_mask(v_keys_shared, v_shared_target);
+        __mmask8 match_mask_main = _mm512_cmpeq_epi64_mask(v_keys_main, v_main_target);
+        if (match_mask_shared) {
+            int j = __builtin_ctz(match_mask_shared);
+            return &sharedBucket->counters[slotIndex + j];
+        } else if (match_mask_main) {
+            int j = __builtin_ctz(match_mask_main);
+            return &mainBucket->counters[slotIndex + j];
         }
     }
-
-    return nullptr;
+    return slot;
 }
 
 OperationResults WRERTNode::put(uint64_t subKey, uint64_t value, WRERTSegmentNode* segmentNode, WRERTSegment* segment, WRERTSlotKeyValue* slot,
@@ -320,6 +305,8 @@ OperationResults WRERTNode::put(uint64_t subKey, uint64_t value, WRERTSegmentNod
                 clflush((char*)segment + (dstSharedBucketOffset + WRERT_SHARED_BUCKETS_PER_SEGMENT), sizeof(WRERTBucket) * WRERT_SHARED_BUCKETS_PER_SEGMENT);
             }
 
+            // clflush((char*)segment, sizeof(WRERTSegment));
+
             for (size_t i = 0; i < tmpNodeNum; i++) {
                 WRERTSegmentNode* newSegNode = reinterpret_cast<WRERTSegmentNode*>(WRERT_GET_SEGMENT_POSITION(&this->directoryNode, (segmentIndexStart + tmpNodeNum + i)));
                 WRERTSegmentNode* oldSegNode = reinterpret_cast<WRERTSegmentNode*>(WRERT_GET_SEGMENT_POSITION(&this->directoryNode, (segmentIndexStart + i)));
@@ -339,7 +326,6 @@ OperationResults WRERTNode::put(uint64_t subKey, uint64_t value, WRERTSegmentNod
 
             WRERTNode* newNode = static_cast<WRERTNode*>(concurrency_fast_alloc(
               sizeof(WRERTNode) + sizeof(WRERTSegmentNode) * (1 << (globalDepth + 1))));
-
             newNode->directoryNode.directory = WRERTDirectoryNode::WRERTDirectory(
               &this->directoryNode.directory,
               globalDepth + 1);
@@ -362,7 +348,6 @@ OperationResults WRERTNode::put(uint64_t subKey, uint64_t value, WRERTSegmentNod
 
             migSegmentNode = reinterpret_cast<WRERTSegmentNode*>(
               WRERT_GET_SEGMENT_POSITION(&newNode->directoryNode, (segmentIndex * 2)));
-
             newSegmentNode = reinterpret_cast<WRERTSegmentNode*>(
               WRERT_GET_SEGMENT_POSITION(&newNode->directoryNode, (segmentIndex * 2 + 1)));
 
@@ -428,6 +413,8 @@ OperationResults WRERTNode::put(uint64_t subKey, uint64_t value, WRERTSegmentNod
                 clflush((char*)segment, sizeof(WRERTBucket) * WRERT_SHARED_BUCKETS_PER_SEGMENT);
                 clflush((char*)segment + (dstSharedBucketOffset + WRERT_SHARED_BUCKETS_PER_SEGMENT), sizeof(WRERTBucket) * WRERT_SHARED_BUCKETS_PER_SEGMENT);
             }
+
+            // clflush((char*)segment, sizeof(WRERTSegment));
 
             newSegmentNode->localDepth++;
             newSegmentNode->segmentPtr = reinterpret_cast<uint64_t>(newSegment);
@@ -525,6 +512,17 @@ void WRERTHeader::initialize(const WRERTHeader* oldHeader, unsigned char prefixL
 void WRERTDirectoryNode::initialize(uint8_t globalDepth) {
     this->capacity = 1 << globalDepth;
     this->directory.globalDepth = globalDepth;
+
+    // WRERTKeyValue* globalSegment = static_cast<WRERTKeyValue*>(
+    //   concurrency_fast_alloc(sizeof(WRERTKeyValue) * WRERT_BUCKET_SIZE));
+
+    // for (uint64_t i = 0; i < WRERT_BUCKET_SIZE; i++) {
+    //     globalSegment[i].key = 0;
+    //     globalSegment[i].value = -1;
+    // }
+
+    // this->directory.globalSegmentPtr = reinterpret_cast<uint64_t>(globalSegment);
+    // this->directory.globalSegmentPtr = 0;
 }
 
 void WRERTNode::initialize(unsigned char nodeHeaderDepth, unsigned char globalDepth) {

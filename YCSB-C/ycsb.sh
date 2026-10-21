@@ -15,7 +15,7 @@ indices1=("wrert")
 # workloads1=("workloada" "workloadb" "workloadc" "workloadd" "workloade" "workloadf")
 workloads=("workloada")
 
-# 单线程测试
+# Single-threaded Testing
 for idx in "${indices1[@]}"; do
     for workload in "${workloads1[@]}"; do
         for i in {1..1}; do
@@ -58,6 +58,7 @@ indices2=("wrert")
 # rm -rf ./Log/wrert/multi_thread/workloade/*
 # rm -rf ./Log/wrert/multi_thread/workloadf/*
 
+# Multi-threaded Testing
 for idx in "${indices2[@]}"; do
     for workload in "${workloads2[@]}"; do
         for thread in "${threads[@]}"; do
